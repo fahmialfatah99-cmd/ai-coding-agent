@@ -2,16 +2,39 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 try:
-    from .api.routes import router as api_router
+    from .api.routers import (
+        agent_router,
+        workspaces_router,
+        files_router,
+        context_router,
+        vector_router,
+        sandbox_router,
+        models_router,
+        sessions_router,
+        diff_router,
+    )
 except ImportError:
-    from app.api.routes import router as api_router
+    from app.api.routers import (
+        agent_router,
+        workspaces_router,
+        files_router,
+        context_router,
+        vector_router,
+        sandbox_router,
+        models_router,
+        sessions_router,
+        diff_router,
+    )
 
 app = FastAPI(
     title="AI Coding Agent Engine",
-    description="Autonomous ReAct AI Coding Agent Platform with Multi-Provider LLM, Tree-sitter AST, and Docker Sandbox.",
-    version="2.0.0"
+    description="Autonomous ReAct AI Coding Agent Platform (Cursor-grade) with 9 Modular Routers.",
+    version="2.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,14 +43,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router)
+# Mount 9 Enterprise Routers under /api/v1
+API_PREFIX = "/api/v1"
+app.include_router(agent_router, prefix=API_PREFIX)
+app.include_router(workspaces_router, prefix=API_PREFIX)
+app.include_router(files_router, prefix=API_PREFIX)
+app.include_router(context_router, prefix=API_PREFIX)
+app.include_router(vector_router, prefix=API_PREFIX)
+app.include_router(sandbox_router, prefix=API_PREFIX)
+app.include_router(models_router, prefix=API_PREFIX)
+app.include_router(sessions_router, prefix=API_PREFIX)
+app.include_router(diff_router, prefix=API_PREFIX)
 
 @app.get("/")
-def health_check():
+def root():
     return {
         "status": "online",
         "system": "AI Coding Agent Engine (Cursor-grade Web Platform)",
-        "version": "2.0.0"
+        "version": "2.1.0",
+        "routers_count": 9,
+        "routers": [
+            "/api/v1/agent",
+            "/api/v1/workspaces",
+            "/api/v1/files",
+            "/api/v1/context",
+            "/api/v1/vector",
+            "/api/v1/sandbox",
+            "/api/v1/models",
+            "/api/v1/sessions",
+            "/api/v1/diff",
+        ]
     }
 
 if __name__ == "__main__":

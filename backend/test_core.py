@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+from fastapi.testclient import TestClient
 
 # Add backend/app to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "app")))
@@ -9,6 +10,7 @@ from engine.ast_parser import ASTCodeChunker
 from engine.docker_sandbox import DockerSandboxManager
 from engine.llm_adapter import UnifiedLLMClient
 from engine.orchestrator import AgentOrchestrator
+from main import app
 
 def test_ast_parser_python():
     chunker = ASTCodeChunker()
@@ -114,10 +116,65 @@ def test_orchestrator_tools():
     
     print("[-] Orchestrator tools and diff patching test passed.")
 
+def test_all_9_routers_endpoints():
+    """Test endpoints across all 9 modular routers using FastAPI TestClient."""
+    client = TestClient(app)
+    
+    # 1. Root & router list
+    res = client.get("/")
+    assert res.status_code == 200
+    assert res.json()["routers_count"] == 9
+    
+    # 2. Agent Router
+    res = client.get("/api/v1/agent/health")
+    assert res.status_code == 200
+    
+    # 3. Workspaces Router
+    res = client.get("/api/v1/workspaces")
+    assert res.status_code == 200
+    
+    # 4. Files Router
+    res = client.get("/api/v1/files?workspace_path=./test_workspace")
+    assert res.status_code == 200
+    
+    # 5. Context Router
+    res = client.get("/api/v1/context/languages")
+    assert res.status_code == 200
+    assert ".py" in res.json()["supported_extensions"]
+    
+    # 6. Vector Router
+    res = client.post("/api/v1/vector/search", json={"query": "agent"})
+    assert res.status_code == 200
+    
+    # 7. Sandbox Router
+    res = client.get("/api/v1/sandbox/status?workspace_path=./test_workspace")
+    assert res.status_code == 200
+    
+    # 8. Models Router
+    res = client.get("/api/v1/models")
+    assert res.status_code == 200
+    assert len(res.json()["providers"]) >= 4
+    
+    # 9. Sessions Router
+    res = client.get("/api/v1/sessions")
+    assert res.status_code == 200
+    
+    # 10. Diff Router
+    res = client.post("/api/v1/diff/generate", json={
+        "file_path": "sample.py",
+        "original_code": "a = 1\n",
+        "modified_code": "a = 2\n"
+    })
+    assert res.status_code == 200
+    assert res.json()["has_changes"] is True
+    
+    print("[-] All 9 Modular Router endpoints tested and PASSED successfully.")
+
 if __name__ == "__main__":
     test_ast_parser_python()
     test_ast_parser_javascript()
     test_sandbox_local_execution()
     test_llm_adapter_providers()
     test_orchestrator_tools()
-    print("\n=> ALL COMPREHENSIVE BACKEND TESTS PASSED SUCCESSFULLY!")
+    test_all_9_routers_endpoints()
+    print("\n=> ALL 9-ROUTER SUITE TESTS PASSED 100% SUCCESSFULLY!")
