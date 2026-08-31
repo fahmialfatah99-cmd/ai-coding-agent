@@ -212,16 +212,19 @@ export default function Home() {
             })
           );
 
-          // If file modified, automatically update active file if it matches
+          // If file modified or created, automatically load it into Monaco Editor!
           if (event.type === "file_modified" && event.path) {
+            const modifiedPath = event.path;
             refreshFiles();
-            if (event.path === activeFile) {
-              readFile(workspacePath, event.path).then((c) => {
-                setOriginalDiffCode(activeCode);
-                setModifiedDiffCode(c);
-                setDiffFilePath(event.path || "");
-              });
-            }
+            readFile(workspacePath, modifiedPath)
+              .then((c) => {
+                setActiveFile(modifiedPath);
+                setActiveCode(c);
+                if (event.diff) {
+                  setDiffFilePath(modifiedPath);
+                }
+              })
+              .catch(console.error);
           }
         }
       );

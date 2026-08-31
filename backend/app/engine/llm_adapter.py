@@ -5,8 +5,8 @@ import httpx
 
 class UnifiedLLMClient:
     """
-    Multi-Provider LLM Client with Real-Time Dynamic Model Discovery
-    and Universal SSE Stream + Standard JSON Parser.
+    Multi-Provider LLM Client with Real-Time Dynamic Model Discovery,
+    SSE Stream & Standard JSON Parser with Reasoning Content Support.
     Optimized for 9Router local/cloud AI gateway with automatic fallback.
     """
     
@@ -56,7 +56,8 @@ class UnifiedLLMClient:
             return {
                 "role": "assistant",
                 "content": f"[Simulated Response from {self.provider} ({self.model})]: API key not set.",
-                "tool_calls": []
+                "tool_calls": [],
+                "reasoning": ""
             }
 
         headers = {
@@ -109,7 +110,8 @@ class UnifiedLLMClient:
                     return {
                         "role": "assistant",
                         "content": text,
-                        "tool_calls": []
+                        "tool_calls": [],
+                        "reasoning": ""
                     }
                 else:
                     data = response.json()
@@ -118,20 +120,24 @@ class UnifiedLLMClient:
                     return {
                         "role": message.get("role", "assistant"),
                         "content": message.get("content", ""),
-                        "tool_calls": message.get("tool_calls", [])
+                        "tool_calls": message.get("tool_calls", []),
+                        "reasoning": message.get("reasoning_content", "")
                     }
             except Exception as e:
                 return {
                     "role": "assistant",
                     "content": f"LLM Request failed ({self.provider} - {self.model}): {str(e)}",
-                    "tool_calls": []
+                    "tool_calls": [],
+                    "reasoning": ""
                 }
 
     def _parse_sse_stream_response(self, raw_text: str) -> Dict[str, Any]:
         """
-        Parses and aggregates text/event-stream chunks into a single completion object.
+        Parses and aggregates text/event-stream chunks into a single completion object,
+        including content, tool_calls, and reasoning_content.
         """
         full_content_parts = []
+        reasoning_parts = []
         tool_calls_map: Dict[int, Dict[str, Any]] = {}
 
         for line in raw_text.splitlines():
@@ -151,6 +157,10 @@ class UnifiedLLMClient:
 
                 choice = choices[0]
                 delta = choice.get("delta", {})
+
+                # Accumulate reasoning/thinking content
+                if delta.get("reasoning_content"):
+                    reasoning_parts.append(delta["reasoning_content"])
 
                 # Accumulate text content
                 if delta.get("content"):
@@ -183,7 +193,8 @@ class UnifiedLLMClient:
         return {
             "role": "assistant",
             "content": "".join(full_content_parts),
-            "tool_calls": final_tool_calls
+            "tool_calls": final_tool_calls,
+            "reasoning": "".join(reasoning_parts)
         }
 
     @classmethod

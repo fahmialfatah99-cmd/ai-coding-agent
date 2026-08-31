@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import difflib
 from typing import AsyncGenerator, Dict, Any, List, Optional
 from .docker_sandbox import DockerSandboxManager
@@ -15,7 +16,7 @@ class AgentOrchestrator:
     def __init__(
         self,
         workspace_path: str,
-        provider: str = "openai",
+        provider: str = "9router",
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         base_url: Optional[str] = None
@@ -37,27 +38,13 @@ class AgentOrchestrator:
             {
                 "type": "function",
                 "function": {
-                    "name": "read_file",
-                    "description": "Reads the entire content of a file in the workspace.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string", "description": "Relative file path from workspace root"}
-                        },
-                        "required": ["path"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
                     "name": "write_file",
-                    "description": "Writes or overwrites a complete file in the workspace.",
+                    "description": "Writes or creates a code file in the workspace. Use this tool whenever asked to write, create, generate, or refactor code.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "path": {"type": "string", "description": "Relative file path"},
-                            "content": {"type": "string", "description": "Full file content to write"}
+                            "path": {"type": "string", "description": "Relative file path from workspace root, e.g. main.py, src/app.js, calculator.py"},
+                            "content": {"type": "string", "description": "The complete source code to write to the file"}
                         },
                         "required": ["path", "content"]
                     }
@@ -82,12 +69,26 @@ class AgentOrchestrator:
             {
                 "type": "function",
                 "function": {
+                    "name": "read_file",
+                    "description": "Reads the entire content of an existing file in the workspace.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "Relative file path from workspace root"}
+                        },
+                        "required": ["path"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "run_sandbox_command",
                     "description": "Executes shell commands (test suites, build, lint, compilers) in the isolated sandbox.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "command": {"type": "string", "description": "Shell command to run, e.g. pytest, npm test, python -m unittest"}
+                            "command": {"type": "string", "description": "Shell command to run, e.g. pytest, npm test, python main.py"}
                         },
                         "required": ["command"]
                     }
@@ -116,6 +117,32 @@ class AgentOrchestrator:
         diff = difflib.unified_diff(orig_lines, mod_lines, fromfile=f"a/{filename}", tofile=f"b/{filename}")
         return "".join(diff)
 
+    def _extract_code_blocks(self, text: str) -> List[Dict[str, str]]:
+        """
+        Fallback parser: extracts markdown code blocks with inferred or explicit file paths.
+        """
+        pattern = r"```(?:(\w+)(?::([^\n]+)|(?:\s+([^\n]+)))?)?\n([\s\S]*?)```"
+        matches = re.findall(pattern, text)
+        results = []
+        for lang, explicit_path1, explicit_path2, code in matches:
+            path = explicit_path1.strip() or explicit_path2.strip()
+            if not path:
+                # Check first line of code for filename comment e.g. # calculator.py or // app.js
+                first_line = code.split("\n", 1)[0].strip()
+                if first_line.startswith(("#", "//", "/*", "<!--")) and ("." in first_line):
+                    cleaned = re.sub(r"^[#/\*<!\- ]+", "", first_line).replace("-->", "").strip()
+                    if len(cleaned.split()) == 1 and "." in cleaned:
+                        path = cleaned
+
+            if not path and lang:
+                ext_map = {"python": "py", "javascript": "js", "typescript": "ts", "html": "html", "css": "css"}
+                ext = ext_map.get(lang.lower(), lang.lower())
+                path = f"app.{ext}"
+
+            if path and code.strip():
+                results.append({"path": path, "content": code.strip()})
+        return results
+
     async def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """
         Dispatches tool calls safely within the workspace.
@@ -131,7 +158,7 @@ class AgentOrchestrator:
                 return {"error": f"Failed to read file: {str(e)}"}
 
         elif tool_name == "write_file":
-            rel_path = args.get("path", "")
+            rel_path = args.get("path", "").strip().lstrip("/\\")
             target = os.path.join(self.workspace_path, rel_path)
             os.makedirs(os.path.dirname(target), exist_ok=True)
             
@@ -156,7 +183,7 @@ class AgentOrchestrator:
             }
 
         elif tool_name == "apply_diff_patch":
-            rel_path = args.get("path", "")
+            rel_path = args.get("path", "").strip().lstrip("/\\")
             target = os.path.join(self.workspace_path, rel_path)
             if not os.path.exists(target):
                 return {"error": f"File '{rel_path}' not found."}
@@ -206,16 +233,15 @@ class AgentOrchestrator:
         max_iterations: int = 6
     ) -> AsyncGenerator[str, None]:
         """
-        Executes autonomous ReAct loop with real-time SSE streaming & self-healing.
+        Executes autonomous ReAct loop with real-time SSE streaming, automatic tool dispatching, & self-healing.
         """
         system_prompt = (
-            "You are an expert Senior AI Software Engineer operating inside an autonomous IDE. "
-            "You have tools to read/write files, apply patches, parse AST symbols, and run commands in a sandbox. "
-            "Always follow this workflow:\n"
-            "1. Read relevant code and examine AST symbols.\n"
-            "2. Make minimal, precise changes using write_file or apply_diff_patch.\n"
-            "3. Run automated tests or linter in the sandbox to verify changes.\n"
-            "4. If tests fail, diagnose the error and automatically fix it (Self-Correction)."
+            "You are an expert Senior Autonomous AI Software Engineer inside a Cursor-Class Web IDE (like Cursor Composer / Devin).\n\n"
+            "MANDATORY OPERATIONAL DIRECTIVES:\n"
+            "1. DIRECT CODE WRITING: When asked to build, write, create, generate, or refactor code, you MUST ALWAYS invoke the `write_file` or `apply_diff_patch` tool to directly create and update files in the workspace editor. DO NOT just output raw markdown code in conversational text.\n"
+            "2. IMMEDIATE ACTION: Start by inspecting files if needed, then immediately write/patch the code files.\n"
+            "3. SANDBOX VERIFICATION: Run commands using `run_sandbox_command` (e.g. tests, lint, compiler) to verify correctness.\n"
+            "4. SELF-HEALING: If tests fail in the sandbox, inspect the error output and patch the code autonomously."
         )
 
         user_prompt_parts = [f"Instruction: {user_instruction}"]
@@ -233,7 +259,7 @@ class AgentOrchestrator:
 
         try:
             for iteration in range(max_iterations):
-                yield f"data: {json.dumps({'type': 'thought', 'content': f'Iteration {iteration + 1}: Planning next action...'})}\n\n"
+                yield f"data: {json.dumps({'type': 'thought', 'content': f'Iteration {iteration + 1}: Analyzing codebase & preparing actions...'})}\n\n"
 
                 llm_res = await self.llm_client.chat_completion(
                     messages=messages,
@@ -241,8 +267,29 @@ class AgentOrchestrator:
                     temperature=0.1
                 )
 
+                # If LLM returned reasoning/thinking, stream it to UI
+                if llm_res.get("reasoning"):
+                    yield f"data: {json.dumps({'type': 'thought', 'content': llm_res['reasoning'].strip()})}\n\n"
+
                 if llm_res.get("content"):
                     yield f"data: {json.dumps({'type': 'message', 'content': llm_res['content']})}\n\n"
+
+                tool_calls = llm_res.get("tool_calls", [])
+
+                # Fallback: if no tool calls were generated but the model outputted code blocks in text, auto-write them to files!
+                if not tool_calls and llm_res.get("content"):
+                    extracted_blocks = self._extract_code_blocks(llm_res["content"])
+                    if extracted_blocks:
+                        tool_calls = [
+                            {
+                                "id": f"auto_write_{i}",
+                                "type": "function",
+                                "function": {
+                                    "name": "write_file",
+                                    "arguments": json.dumps(blk)
+                                }
+                            } for i, blk in enumerate(extracted_blocks)
+                        ]
 
                 # Append assistant message to context
                 messages.append({
@@ -256,11 +303,10 @@ class AgentOrchestrator:
                                 "name": tc["function"]["name"],
                                 "arguments": tc["function"]["arguments"]
                             }
-                        } for tc in llm_res.get("tool_calls", [])
-                    ] if llm_res.get("tool_calls") else None
+                        } for tc in tool_calls
+                    ] if tool_calls else None
                 })
 
-                tool_calls = llm_res.get("tool_calls", [])
                 if not tool_calls:
                     yield f"data: {json.dumps({'type': 'done', 'content': 'Task completed and verified.'})}\n\n"
                     break
@@ -280,6 +326,8 @@ class AgentOrchestrator:
 
                     if "diff" in tool_result and tool_result["diff"]:
                         yield f"data: {json.dumps({'type': 'file_modified', 'path': tool_result.get('file_path'), 'diff': tool_result['diff']})}\n\n"
+                    elif fn_name == "write_file" and tool_result.get("status") == "success":
+                        yield f"data: {json.dumps({'type': 'file_modified', 'path': fn_args.get('path'), 'diff': tool_result.get('diff', '')})}\n\n"
 
                     messages.append({
                         "role": "tool",
