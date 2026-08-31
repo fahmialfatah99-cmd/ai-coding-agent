@@ -368,23 +368,26 @@ class AgentOrchestrator:
                     "content": llm_res.get("content") or None
                 }
                 if tool_calls:
-                    assistant_msg["tool_calls"] = [
-                        {
-                            "id": tc.get("id", f"call_{i}"),
+                    formatted_tool_calls = []
+                    for i, tc in enumerate(tool_calls):
+                        call_id = tc.get("id") or f"call_{i}_{iteration}"
+                        tc["id"] = call_id
+                        formatted_tool_calls.append({
+                            "id": call_id,
                             "type": "function",
                             "function": {
                                 "name": tc["function"]["name"],
                                 "arguments": tc["function"]["arguments"] if isinstance(tc["function"]["arguments"], str) else json.dumps(tc["function"]["arguments"])
                             }
-                        } for i, tc in enumerate(tool_calls)
-                    ]
+                        })
+                    assistant_msg["tool_calls"] = formatted_tool_calls
                 messages.append(assistant_msg)
 
                 if not tool_calls:
                     yield f"data: {json.dumps({'type': 'done', 'content': 'Task completed and verified.'})}\n\n"
                     break
 
-                for tc in tool_calls:
+                for i, tc in enumerate(tool_calls):
                     fn_name = tc["function"]["name"]
                     raw_args = tc["function"].get("arguments", "{}")
                     try:
@@ -406,7 +409,7 @@ class AgentOrchestrator:
 
                     messages.append({
                         "role": "tool",
-                        "tool_call_id": tc.get("id", "call_0"),
+                        "tool_call_id": tc.get("id", f"call_{i}_{iteration}"),
                         "content": json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result)
                     })
 

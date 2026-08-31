@@ -98,8 +98,9 @@ class DockerSandboxManager:
     def _run_local_fallback(self, cmd: str, timeout_sec: int) -> Dict[str, Any]:
         try:
             if os.name == "nt":
-                # Use PowerShell on Windows for POSIX compatibility (mkdir -p, python -c, ls, etc.)
-                args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", cmd]
+                # Use PowerShell with compatibility aliases for POSIX commands (head, tail, touch, rm -rf, etc.)
+                compat_preamble = "function head { param([int]$n=10) $input | Select-Object -First $n }; function tail { param([int]$n=10) $input | Select-Object -Last $n }; "
+                args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", compat_preamble + cmd]
                 res = subprocess.run(
                     args,
                     cwd=self.workspace_path,
