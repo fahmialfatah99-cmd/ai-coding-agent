@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   Folder,
   FolderOpen,
+  FolderPlus,
   FileCode,
   Plus,
   RefreshCw,
@@ -21,6 +22,7 @@ interface FileTreeProps {
   onDeselectFile?: () => void;
   onRefresh: () => void;
   onCreateFile: (fileName: string) => void;
+  onNewProject?: (projectPath: string) => void;
 }
 
 export const FileTree: React.FC<FileTreeProps> = ({
@@ -30,10 +32,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
   onDeselectFile,
   onRefresh,
   onCreateFile,
+  onNewProject,
 }) => {
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newFileName, setNewFileName] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
 
   const toggleFolder = (path: string) => {
     setOpenFolders((prev) => ({ ...prev, [path]: !prev[path] }));
@@ -53,6 +58,18 @@ export const FileTree: React.FC<FileTreeProps> = ({
       onCreateFile(newFileName.trim());
       setNewFileName("");
       setIsCreating(false);
+    }
+  };
+
+  const handleCreateProjectSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newProjectName.trim() && onNewProject) {
+      const clean = newProjectName.trim().startsWith("./") || newProjectName.trim().includes(":")
+        ? newProjectName.trim()
+        : `./${newProjectName.trim()}`;
+      onNewProject(clean);
+      setNewProjectName("");
+      setIsCreatingProject(false);
     }
   };
 
@@ -128,8 +145,25 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setIsCreating(!isCreating)}
-            className="p-1 rounded text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition"
+            onClick={() => {
+              setIsCreatingProject(!isCreatingProject);
+              setIsCreating(false);
+            }}
+            className={`p-1 rounded transition ${
+              isCreatingProject ? "bg-accent text-white" : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
+            }`}
+            title="New Project Folder"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => {
+              setIsCreating(!isCreating);
+              setIsCreatingProject(false);
+            }}
+            className={`p-1 rounded transition ${
+              isCreating ? "bg-accent text-white" : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
+            }`}
             title="New File"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -168,13 +202,33 @@ export const FileTree: React.FC<FileTreeProps> = ({
         )}
       </div>
 
+      {/* New Project Folder Inline Form */}
+      {isCreatingProject && (
+        <form
+          onClick={(e) => e.stopPropagation()}
+          onSubmit={handleCreateProjectSubmit}
+          className="p-2 border-b border-neutral-800 bg-neutral-900 flex flex-col gap-1 animate-fadeIn"
+        >
+          <label className="text-[10px] text-neutral-400 font-medium">Create/Open Project Folder:</label>
+          <input
+            type="text"
+            placeholder="./my_new_app or my_project"
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+            autoFocus
+            className="w-full bg-neutral-950 border border-accent rounded px-2 py-1 text-xs text-neutral-200 focus:outline-none"
+          />
+        </form>
+      )}
+
       {/* New File Inline Form */}
       {isCreating && (
         <form
           onClick={(e) => e.stopPropagation()}
           onSubmit={handleCreateSubmit}
-          className="p-2 border-b border-neutral-800 bg-neutral-900"
+          className="p-2 border-b border-neutral-800 bg-neutral-900 flex flex-col gap-1 animate-fadeIn"
         >
+          <label className="text-[10px] text-neutral-400 font-medium">New File Name:</label>
           <input
             type="text"
             placeholder="filename.py / src/app.js"
@@ -189,7 +243,9 @@ export const FileTree: React.FC<FileTreeProps> = ({
       {/* Tree Content - Clicking empty space deselects file */}
       <div className="flex-1 overflow-y-auto py-1">
         {tree.length === 0 ? (
-          <div className="text-center text-neutral-600 py-8 text-xs">No files in workspace</div>
+          <div className="text-center text-neutral-600 py-8 text-xs">
+            Empty project workspace.<br />Create a file or ask AI to build a project!
+          </div>
         ) : (
           tree.map((node) => renderNode(node, 0))
         )}

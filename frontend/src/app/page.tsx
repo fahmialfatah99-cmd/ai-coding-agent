@@ -411,6 +411,14 @@ export default function Home() {
             }}
             onRefresh={refreshFiles}
             onCreateFile={handleCreateFile}
+            onNewProject={(newPath) => {
+              setWorkspacePath(newPath);
+              setTempWorkspaceInput(newPath);
+              localStorage.setItem("ai_agent_workspace_path", newPath);
+              setActiveFile("");
+              setActiveCode("");
+              localStorage.removeItem("ai_agent_active_file");
+            }}
           />
         </aside>
 
