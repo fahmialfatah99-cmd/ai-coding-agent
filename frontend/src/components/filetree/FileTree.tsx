@@ -5,12 +5,12 @@ import {
   Folder,
   FolderOpen,
   FileCode,
-  FileText,
   Plus,
   RefreshCw,
   ChevronRight,
   ChevronDown,
   Layers,
+  Globe,
 } from "lucide-react";
 import { FileNode } from "@/lib/api";
 
@@ -18,6 +18,7 @@ interface FileTreeProps {
   tree: FileNode[];
   activeFile?: string;
   onSelectFile: (filePath: string) => void;
+  onDeselectFile?: () => void;
   onRefresh: () => void;
   onCreateFile: (fileName: string) => void;
 }
@@ -26,6 +27,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
   tree,
   activeFile,
   onSelectFile,
+  onDeselectFile,
   onRefresh,
   onCreateFile,
 }) => {
@@ -35,6 +37,14 @@ export const FileTree: React.FC<FileTreeProps> = ({
 
   const toggleFolder = (path: string) => {
     setOpenFolders((prev) => ({ ...prev, [path]: !prev[path] }));
+  };
+
+  const handleClearSelection = () => {
+    if (onDeselectFile) {
+      onDeselectFile();
+    } else {
+      onSelectFile("");
+    }
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -54,7 +64,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
     return (
       <div key={node.path} className="select-none text-xs">
         <div
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (isFolder) {
               toggleFolder(node.path);
             } else {
@@ -99,9 +110,15 @@ export const FileTree: React.FC<FileTreeProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#181818] border-r border-neutral-800 text-neutral-300">
+    <div
+      onClick={handleClearSelection}
+      className="flex flex-col h-full bg-[#181818] border-r border-neutral-800 text-neutral-300"
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 bg-[#141414] border-b border-neutral-800 text-xs">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex items-center justify-between px-3 py-2.5 bg-[#141414] border-b border-neutral-800 text-xs"
+      >
         <div className="flex items-center gap-2">
           <Layers className="w-3.5 h-3.5 text-neutral-400" />
           <span className="font-semibold text-neutral-400 text-[11px] tracking-wider uppercase">
@@ -127,9 +144,37 @@ export const FileTree: React.FC<FileTreeProps> = ({
         </div>
       </div>
 
+      {/* Codebase Wide / All Files Option */}
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          handleClearSelection();
+        }}
+        className={`flex items-center justify-between mx-2 mt-2 mb-1 px-2.5 py-1.5 rounded cursor-pointer text-xs transition select-none ${
+          !activeFile
+            ? "bg-accent/20 border border-accent/40 text-accent font-medium"
+            : "text-neutral-400 hover:bg-neutral-800/60 border border-transparent"
+        }`}
+        title="Click to select entire project (Check / Refine All Files Mode)"
+      >
+        <div className="flex items-center gap-1.5">
+          <Globe className="w-3.5 h-3.5" />
+          <span className="text-[11px]">All Files (Project-Wide)</span>
+        </div>
+        {!activeFile && (
+          <span className="text-[9px] bg-accent/30 text-accent px-1.5 py-0.2 rounded font-semibold uppercase tracking-wider">
+            Active
+          </span>
+        )}
+      </div>
+
       {/* New File Inline Form */}
       {isCreating && (
-        <form onSubmit={handleCreateSubmit} className="p-2 border-b border-neutral-800 bg-neutral-900">
+        <form
+          onClick={(e) => e.stopPropagation()}
+          onSubmit={handleCreateSubmit}
+          className="p-2 border-b border-neutral-800 bg-neutral-900"
+        >
           <input
             type="text"
             placeholder="filename.py / src/app.js"
@@ -141,8 +186,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
         </form>
       )}
 
-      {/* Tree Content */}
-      <div className="flex-1 overflow-y-auto py-2">
+      {/* Tree Content - Clicking empty space deselects file */}
+      <div className="flex-1 overflow-y-auto py-1">
         {tree.length === 0 ? (
           <div className="text-center text-neutral-600 py-8 text-xs">No files in workspace</div>
         ) : (

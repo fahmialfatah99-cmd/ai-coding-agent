@@ -11,11 +11,13 @@ import {
   Terminal,
   FileCode,
   AlertTriangle,
-  CheckCircle,
   Key,
   Cpu,
   StopCircle,
   RefreshCw,
+  Globe,
+  X,
+  Trash2,
 } from "lucide-react";
 import { ModelProvider, AgentSSEEvent } from "@/lib/api";
 
@@ -51,6 +53,9 @@ interface ChatPanelProps {
   onStopStreaming?: () => void;
   onReviewDiff?: (filePath: string, diff: string) => void;
   onRefreshModels?: () => void;
+  activeFile?: string;
+  onClearActiveFile?: () => void;
+  onClearChat?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -67,6 +72,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onStopStreaming,
   onReviewDiff,
   onRefreshModels,
+  activeFile,
+  onClearActiveFile,
+  onClearChat,
 }) => {
   const [inputPrompt, setInputPrompt] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -93,18 +101,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className="flex flex-col h-full bg-[#181818] border-l border-neutral-800 text-neutral-200">
       {/* Top Header Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#141414] border-b border-neutral-800">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#141414] border-b border-neutral-800">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-purple-400" />
-          <span className="font-semibold text-xs tracking-wide">AI AGENT ASSISTANT</span>
+          <span className="font-semibold text-xs tracking-wide">AI ASSISTANT</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Provider / Model Selector */}
           <select
             value={selectedProvider}
             onChange={(e) => onProviderChange(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-accent"
+            className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-accent max-w-[110px]"
           >
             {providers.map((p) => (
               <option key={p.id} value={p.id}>
@@ -116,7 +124,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <select
             value={selectedModel}
             onChange={(e) => onModelChange(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-accent"
+            className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-accent max-w-[130px]"
           >
             {activeProviderObj?.models.map((m) => (
               <option key={m} value={m}>
@@ -128,7 +136,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           {onRefreshModels && (
             <button
               onClick={onRefreshModels}
-              className="p-1.5 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded transition"
+              className="p-1 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded transition"
               title="Auto-Detect & Sync 9Router Combos/Models"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -137,14 +145,53 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className={`p-1.5 rounded transition ${
+            className={`p-1 rounded transition ${
               showSettings ? "bg-accent text-white" : "text-neutral-400 hover:bg-neutral-800"
             }`}
             title="Configure API Key"
           >
             <Key className="w-3.5 h-3.5" />
           </button>
+
+          {onClearChat && (
+            <button
+              onClick={onClearChat}
+              className="p-1 text-neutral-400 hover:text-rose-400 hover:bg-neutral-800 rounded transition"
+              title="Clear Chat History"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* Target Execution Scope Indicator */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#121212] border-b border-neutral-800/80 text-[11px] select-none">
+        <div className="flex items-center gap-1.5">
+          {activeFile ? (
+            <>
+              <FileCode className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="text-neutral-400">Target File:</span>
+              <span className="font-mono text-blue-300 font-medium truncate max-w-[160px]">{activeFile}</span>
+            </>
+          ) : (
+            <>
+              <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-emerald-400 font-medium">Target Scope: Entire Project (All Files)</span>
+            </>
+          )}
+        </div>
+
+        {activeFile && onClearActiveFile && (
+          <button
+            onClick={onClearActiveFile}
+            className="flex items-center gap-1 px-1.5 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded text-[10px] transition"
+            title="Switch to checking/editing entire project (All Files)"
+          >
+            <X className="w-3 h-3 text-rose-400" />
+            <span>Switch to All Files</span>
+          </button>
+        )}
       </div>
 
       {/* Settings / API Key Popdown */}
@@ -161,7 +208,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-accent"
           />
           <span className="text-[10px] text-neutral-500">
-            Stored locally in session memory. Ollama does not require an API key.
+            Stored locally in browser session memory.
           </span>
         </div>
       )}
@@ -173,7 +220,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <Bot className="w-10 h-10 mb-3 text-neutral-600 animate-pulse" />
             <p className="text-sm font-medium text-neutral-400">How can I help you code today?</p>
             <p className="text-xs max-w-xs mt-1 text-neutral-600">
-              Ask me to build a feature, refactor code, run sandbox tests, or fix bugs autonomously.
+              Ask me to build a feature, check the whole project, write tests, or refactor code.
             </p>
           </div>
         )}
@@ -321,7 +368,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 handleSubmit(e);
               }
             }}
-            placeholder="Ask agent to edit, test, or generate code..."
+            placeholder={
+              activeFile
+                ? `Ask agent about ${activeFile} or switch to All Files...`
+                : "Ask agent to build features, check all files, or run tests across the whole project..."
+            }
             rows={2}
             className="w-full bg-[#1e1e1e] border border-neutral-700 rounded-lg pl-3 pr-20 py-2 text-xs text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-accent resize-none"
           />

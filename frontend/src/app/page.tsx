@@ -404,6 +404,11 @@ export default function Home() {
             tree={fileTree}
             activeFile={activeFile}
             onSelectFile={handleSelectFile}
+            onDeselectFile={() => {
+              setActiveFile("");
+              setActiveCode("");
+              localStorage.removeItem("ai_agent_active_file");
+            }}
             onRefresh={refreshFiles}
             onCreateFile={handleCreateFile}
           />
@@ -541,6 +546,16 @@ export default function Home() {
             onSendMessage={handleSendMessage}
             onReviewDiff={handleReviewDiff}
             onRefreshModels={() => refreshModelsList(apiKey)}
+            activeFile={activeFile}
+            onClearActiveFile={() => {
+              setActiveFile("");
+              setActiveCode("");
+              localStorage.removeItem("ai_agent_active_file");
+            }}
+            onClearChat={() => {
+              setMessages([]);
+              localStorage.removeItem("ai_agent_messages");
+            }}
           />
         </aside>
       </div>
