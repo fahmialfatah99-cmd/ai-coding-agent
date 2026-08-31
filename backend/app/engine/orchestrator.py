@@ -8,6 +8,17 @@ from .docker_sandbox import DockerSandboxManager
 from .ast_parser import ASTCodeChunker
 from .llm_adapter import UnifiedLLMClient
 
+def get_repo_root() -> str:
+    curr = os.path.abspath(os.path.dirname(__file__))
+    for _ in range(6):
+        if os.path.exists(os.path.join(curr, "docker-compose.yml")) or os.path.exists(os.path.join(curr, ".git")):
+            return curr
+        parent = os.path.dirname(curr)
+        if parent == curr:
+            break
+        curr = parent
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
 class AgentOrchestrator:
     """
     Autonomous ReAct Agent Orchestrator with Persistent Memory Learning,
@@ -23,7 +34,7 @@ class AgentOrchestrator:
         base_url: Optional[str] = None
     ):
         if not os.path.isabs(workspace_path):
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            base_dir = get_repo_root()
             clean_rel = workspace_path.lstrip("./").lstrip(".\\")
             self.workspace_path = os.path.abspath(os.path.join(base_dir, clean_rel))
         else:

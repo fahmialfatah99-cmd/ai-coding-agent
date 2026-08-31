@@ -5,12 +5,22 @@ from typing import List, Dict, Any, Optional
 
 router = APIRouter(prefix="/files", tags=["File System & Explorer"])
 
+def get_repo_root() -> str:
+    curr = os.path.abspath(os.path.dirname(__file__))
+    for _ in range(6):
+        if os.path.exists(os.path.join(curr, "docker-compose.yml")) or os.path.exists(os.path.join(curr, ".git")):
+            return curr
+        parent = os.path.dirname(curr)
+        if parent == curr:
+            break
+        curr = parent
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+
 def get_resolved_workspace(path: str = "./workspace") -> str:
     if os.path.isabs(path):
         resolved = os.path.abspath(path)
     else:
-        # Resolve relative to repo root (c:/Users/mj9/alfa_projects/ai_coding_agent/workspace)
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        base_dir = get_repo_root()
         clean_rel = path.lstrip("./").lstrip(".\\")
         resolved = os.path.abspath(os.path.join(base_dir, clean_rel))
     os.makedirs(resolved, exist_ok=True)
@@ -34,7 +44,7 @@ async def list_available_workspaces():
     """
     Returns list of available top-level project folders for 1-click selection across Windows and Linux.
     """
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    base_dir = get_repo_root()
     ignore_dirs = {".git", "node_modules", "__pycache__", ".next", ".pytest_cache", "venv", ".venv"}
     
     folders = []
