@@ -21,7 +21,12 @@ class AgentOrchestrator:
         model: Optional[str] = None,
         base_url: Optional[str] = None
     ):
-        self.workspace_path = os.path.abspath(workspace_path)
+        if not os.path.isabs(workspace_path):
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            clean_rel = workspace_path.lstrip("./").lstrip(".\\")
+            self.workspace_path = os.path.abspath(os.path.join(base_dir, clean_rel))
+        else:
+            self.workspace_path = os.path.abspath(workspace_path)
         os.makedirs(self.workspace_path, exist_ok=True)
         
         self.sandbox = DockerSandboxManager(self.workspace_path)

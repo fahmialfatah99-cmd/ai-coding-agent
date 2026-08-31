@@ -5,6 +5,17 @@ from typing import List, Dict, Any, Optional
 
 router = APIRouter(prefix="/files", tags=["File System & Explorer"])
 
+def get_resolved_workspace(path: str = "./workspace") -> str:
+    if os.path.isabs(path):
+        resolved = os.path.abspath(path)
+    else:
+        # Resolve relative to repo root (c:/Users/mj9/alfa_projects/ai_coding_agent/workspace)
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        clean_rel = path.lstrip("./").lstrip(".\\")
+        resolved = os.path.abspath(os.path.join(base_dir, clean_rel))
+    os.makedirs(resolved, exist_ok=True)
+    return resolved
+
 class FileReadRequest(BaseModel):
     workspace_path: str = "./workspace"
     file_path: str
@@ -21,9 +32,7 @@ class FileDeleteRequest(BaseModel):
 @router.get("")
 async def get_file_tree(workspace_path: str = Query("./workspace")):
     """Recursively lists files and directories in the workspace."""
-    abs_root = os.path.abspath(workspace_path)
-    if not os.path.exists(abs_root):
-        os.makedirs(abs_root, exist_ok=True)
+    abs_root = get_resolved_workspace(workspace_path)
 
     ignore_dirs = {".git", "node_modules", "__pycache__", ".next", ".pytest_cache", "venv", ".venv"}
 
@@ -58,9 +67,10 @@ async def get_file_tree(workspace_path: str = Query("./workspace")):
 @router.post("/read")
 async def read_file(req: FileReadRequest):
     """Reads content of a workspace file."""
-    abs_path = os.path.abspath(os.path.join(req.workspace_path, req.file_path))
+    abs_root = get_resolved_workspace(req.workspace_path)
+    abs_path = os.path.abspath(os.path.join(abs_root, req.file_path))
     if not os.path.exists(abs_path) or os.path.isdir(abs_path):
-        raise HTTPException(status_code=404, detail=f"File '{req.file_path}' not found.")
+        raise HTTPException(status_code=404, detail=f"File '{req.file_path}' not found at {abs_path}.")
     
     try:
         with open(abs_path, "r", encoding="utf-8") as f:
@@ -72,7 +82,8 @@ async def read_file(req: FileReadRequest):
 @router.post("/write")
 async def write_file(req: FileWriteRequest):
     """Creates or updates a workspace file."""
-    abs_path = os.path.abspath(os.path.join(req.workspace_path, req.file_path))
+    abs_root = get_resolved_workspace(req.workspace_path)
+    abs_path = os.path.abspath(os.path.join(abs_root, req.file_path))
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
     
     try:
@@ -85,7 +96,8 @@ async def write_file(req: FileWriteRequest):
 @router.post("/delete")
 async def delete_file(req: FileDeleteRequest):
     """Deletes a file from the workspace."""
-    abs_path = os.path.abspath(os.path.join(req.workspace_path, req.file_path))
+    abs_root = get_resolved_workspace(req.workspace_path)
+    abs_path = os.path.abspath(os.path.join(abs_root, req.file_path))
     if not os.path.exists(abs_path):
         raise HTTPException(status_code=404, detail="File not found.")
     
