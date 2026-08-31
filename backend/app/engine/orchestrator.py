@@ -42,6 +42,7 @@ class AgentOrchestrator:
         os.makedirs(self.workspace_path, exist_ok=True)
         
         self.sandbox = DockerSandboxManager(self.workspace_path)
+        self.active_file: Optional[str] = None
         self.chunker = ASTCodeChunker()
         self.llm_client = UnifiedLLMClient(
             provider=provider,
@@ -101,9 +102,9 @@ class AgentOrchestrator:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "path": {"type": "string", "description": "Relative file path"},
-                            "target_string": {"type": "string", "description": "Exact substring to find and replace"},
-                            "replacement_string": {"type": "string", "description": "New replacement substring"}
+                            "path": {"type": "string", "description": "Relative path of file to patch"},
+                            "target_string": {"type": "string", "description": "Exact existing code snippet to replace"},
+                            "replacement_string": {"type": "string", "description": "New replacement code"}
                         },
                         "required": ["path", "target_string", "replacement_string"]
                     }
@@ -112,27 +113,12 @@ class AgentOrchestrator:
             {
                 "type": "function",
                 "function": {
-                    "name": "record_learned_knowledge",
-                    "description": "Persists new learned knowledge, architectural conventions, coding rules, or notes into the project's permanent MEMORY.md file.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "topic": {"type": "string", "description": "Title/topic of the learned rule or knowledge"},
-                            "content": {"type": "string", "description": "Detailed explanation, conventions, or rules to remember"}
-                        },
-                        "required": ["topic", "content"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
                     "name": "run_sandbox_command",
-                    "description": "Executes shell commands (e.g. git clone, pytest, npm test, python main.py) in the sandbox.",
+                    "description": "Executes shell commands (npm, pip, pytest, git, etc.) in an isolated sandbox.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "command": {"type": "string", "description": "Shell command to run"}
+                            "command": {"type": "string", "description": "Shell command line string to run"}
                         },
                         "required": ["command"]
                     }
@@ -141,30 +127,45 @@ class AgentOrchestrator:
             {
                 "type": "function",
                 "function": {
-                    "name": "git_commit_and_push",
-                    "description": "Stages all files, creates a descriptive git commit, and pushes directly to the GitHub remote repository.",
+                    "name": "search_ast_symbols",
+                    "description": "Parses Class, Function, Interface AST definitions from a source file.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "commit_message": {"type": "string", "description": "Meaningful git commit message (e.g. 'feat: implement user authentication')"},
-                            "branch": {"type": "string", "description": "Branch name to push to, defaults to 'main'"}
+                            "path": {"type": "string", "description": "Relative path of source file"},
+                            "query": {"type": "string", "description": "Symbol name or pattern to locate"}
                         },
-                        "required": ["commit_message"]
+                        "required": ["path"]
                     }
                 }
             },
             {
                 "type": "function",
                 "function": {
-                    "name": "search_ast_symbols",
-                    "description": "Searches functions, classes, and methods using Tree-sitter AST parsing.",
+                    "name": "record_learned_knowledge",
+                    "description": "Persists knowledge, guidelines, architectural rules, or preferences permanently into MEMORY.md for future sessions.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "path": {"type": "string", "description": "Relative file path"},
-                            "query": {"type": "string", "description": "Symbol name keyword to search"}
+                            "topic": {"type": "string", "description": "Short topic or title of the knowledge"},
+                            "content": {"type": "string", "description": "Markdown content describing the convention or rule"}
                         },
-                        "required": ["path", "query"]
+                        "required": ["topic", "content"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "git_commit_and_push",
+                    "description": "Stages all changes, creates a descriptive git commit, and pushes to remote.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "commit_message": {"type": "string", "description": "Git commit message"},
+                            "branch": {"type": "string", "description": "Target branch to push to (defaults to main)"}
+                        },
+                        "required": ["commit_message"]
                     }
                 }
             }
@@ -201,8 +202,10 @@ class AgentOrchestrator:
 
             if not path and lang_clean:
                 ext_map = {"python": "py", "javascript": "js", "typescript": "ts", "html": "html", "css": "css", "sql": "sql"}
-                if lang_clean in ext_map:
-                    path = f"app.{ext_map[lang_clean]}"
+                if self.active_file and any(self.active_file.endswith(ext) for ext in [f".{lang_clean}", f".{ext_map.get(lang_clean, '')}"]):
+                    path = self.active_file
+                elif lang_clean in ext_map:
+                    path = f"index.{ext_map[lang_clean]}" if lang_clean in ["html", "js", "ts"] else f"app.{ext_map[lang_clean]}"
 
             if path and code.strip():
                 results.append({"path": path, "content": code.strip()})
@@ -496,6 +499,9 @@ class AgentOrchestrator:
         """
         self.sandbox.start_sandbox()
 
+        self.active_file = active_file
+        self.sandbox.start_sandbox()
+
         # Shared Project Context & Memory
         memory_files = ["MEMORY.md", ".agent/rules.md", ".cursorrules", "ARCHITECTURE.md"]
         learned_knowledge = []
@@ -534,6 +540,8 @@ class AgentOrchestrator:
         arch_prompt = f"User Request: {user_instruction}\nWorkspace Files: {files_summary}"
         if active_file:
             arch_prompt += f"\nTarget Active File: `{active_file}`"
+        if file_content is not None:
+            arch_prompt += f"\nActive File Content:\n```\n{file_content}\n```"
 
         arch_res = await self.llm_client.chat_completion(
             messages=[
@@ -597,7 +605,7 @@ class AgentOrchestrator:
                     "type": "thought",
                     "agent_role": builder_role,
                     "agent_name": builder_name,
-                    "content": f"{builder_icon} [{builder_name}] Mengimplementasikan kode sesuai blueprint arsitektur..."
+                    "content": f"{builder_icon} [{builder_name}] Mengimplementasikan kode secara nyata sesuai blueprint arsitektur..."
                 }
                 yield f"data: {json.dumps(init_thought)}\n\n"
 
@@ -615,17 +623,26 @@ class AgentOrchestrator:
 
             builder_system = (
                 f"You are the {builder_name} in an Elite AI Engineering Team.\n"
-                "MANDATORY DIRECTIVES:\n"
-                "1. DIRECT CODE EXECUTION: You MUST ALWAYS invoke `write_file` or `apply_diff_patch` to create and update code files in the workspace.\n"
-                "2. QUALITY FIRST: Implement complete, robust, clean, and production-ready code with zero placeholder comments.\n"
-                "3. SELF-TESTING: Run tests or validation via `run_sandbox_command` when needed."
+                "CRITICAL EXECUTION MANDATE:\n"
+                "1. ACTION-FIRST POLICY: You are an execution builder. You MUST invoke `write_file` or `apply_diff_patch` to create and update files in the workspace.\n"
+                "2. NO DISCUSSION / NO TALKING: Do NOT just describe or discuss what to do in conversational text. You MUST call tools to directly write the code into the files.\n"
+                "3. PRODUCTION QUALITY: Implement complete, robust, clean, and production-ready code with zero placeholder gaps."
                 f"{ui_ux_pro_max_directives if builder_role == 'frontend' else superpowers_directives}"
                 f"{memory_ctx}"
             )
 
-            builder_user_prompt = f"User Request: {user_instruction}\nArchitect Plan:\n{plan_content}"
+            prompt_sections = [
+                f"User Request: {user_instruction}",
+                f"Architect Plan:\n{plan_content}"
+            ]
+            if active_file:
+                prompt_sections.append(f"Target Active File: `{active_file}`")
+            if file_content is not None:
+                prompt_sections.append(f"Active File Content:\n```\n{file_content}\n```")
             if is_rework and audit_feedback:
-                builder_user_prompt += f"\n\n🚨 CRITICAL AUDIT FEEDBACK (FIX ALL ISSUES):\n{audit_feedback}"
+                prompt_sections.append(f"🚨 CRITICAL AUDIT FEEDBACK (FIX ALL ISSUES):\n{audit_feedback}")
+
+            builder_user_prompt = "\n\n".join(prompt_sections)
 
             builder_messages: List[Dict[str, Any]] = [
                 {"role": "system", "content": builder_system},
@@ -644,6 +661,7 @@ class AgentOrchestrator:
                     yield f"data: {json.dumps({'type': 'thought', 'agent_role': builder_role, 'agent_name': builder_name, 'content': b_res['reasoning'].strip()})}\n\n"
 
                 tool_calls = b_res.get("tool_calls", [])
+                extracted = []
 
                 # Auto-fallback code extraction if code blocks present
                 if not tool_calls and b_res.get("content"):
@@ -676,10 +694,17 @@ class AgentOrchestrator:
                     assistant_entry["tool_calls"] = fmt_calls
                 builder_messages.append(assistant_entry)
 
-                if not tool_calls:
-                    if b_res.get("content"):
-                        yield f"data: {json.dumps({'type': 'message', 'agent_role': builder_role, 'agent_name': builder_name, 'content': b_res['content']})}\n\n"
-                    break
+                if not tool_calls and not extracted:
+                    if not all_modified_files and b_iter < 2:
+                        builder_messages.append({
+                            "role": "user",
+                            "content": "CRITICAL: You are an autonomous software engineer. You have NOT written or modified any files yet. You MUST call `write_file` or `apply_diff_patch` NOW to create and update the code files. Do not reply with conversational text."
+                        })
+                        continue
+                    else:
+                        if b_res.get("content"):
+                            yield f"data: {json.dumps({'type': 'message', 'agent_role': builder_role, 'agent_name': builder_name, 'content': b_res['content']})}\n\n"
+                        break
 
                 for idx, tc in enumerate(tool_calls):
                     fn_name = tc["function"]["name"]
@@ -727,26 +752,32 @@ class AgentOrchestrator:
             }
             yield f"data: {json.dumps(auditor_thought)}\n\n"
 
-            # Gather current contents of all modified files for rigorous review
             files_code_bundle = []
             for path_k in list(all_modified_files.keys()):
                 read_res = await self.execute_tool("read_file", {"path": path_k})
                 if "content" in read_res:
                     files_code_bundle.append(f"--- File: `{path_k}` ---\n```\n{read_res['content']}\n```")
 
-            code_to_audit = "\n\n".join(files_code_bundle) if files_code_bundle else "No files modified."
+            if not files_code_bundle:
+                if active_file:
+                    read_act = await self.execute_tool("read_file", {"path": active_file})
+                    if "content" in read_act:
+                        files_code_bundle.append(f"--- Active File: `{active_file}` ---\n```\n{read_act['content']}\n```")
+
+            code_to_audit = "\n\n".join(files_code_bundle) if files_code_bundle else "WARNING: No files were created or modified by the builder in this session."
 
             auditor_system = (
                 "You are the Strict Quality & Security Auditor (Audit Gatekeeper) of an Elite AI Software Engineering Team, equipped with Superpowers Verification Gates and UI/UX Pro Max Quality Standards.\n"
                 "Your mission: Thoroughly review all generated code against:\n"
-                "1. Correctness & completeness according to the user request.\n"
-                "2. Clean syntax, zero placeholder gaps, proper imports, and modern coding standards.\n"
-                "3. Security safeguards (no raw script injections, proper escaping, safe input handling).\n"
-                "4. UI/UX Pro Max Design Compliance: Responsive layout (Tailwind CSS), high visual polish, semantic accessibility, and robust error handling.\n\n"
+                "1. Direct File Execution: If no files were written or created to fulfill the user request, you MUST reject and mandate file creation.\n"
+                "2. Correctness & completeness according to the user request.\n"
+                "3. Clean syntax, zero placeholder gaps, proper imports, and modern coding standards.\n"
+                "4. Security safeguards (no raw script injections, proper escaping, safe input handling).\n"
+                "5. UI/UX Pro Max Design Compliance: Responsive layout (Tailwind CSS), high visual polish, semantic accessibility, and robust error handling.\n\n"
                 "VERDICT RULES:\n"
                 "- If all files meet high production standards, end your response with:\n"
                 "VERDICT: PASSED\n"
-                "- If there are any bugs, missing requirements, broken styling, or vulnerabilities, end with:\n"
+                "- If there are any bugs, missing requirements, broken styling, or if no files were modified, end with:\n"
                 "VERDICT: REJECTED\n"
                 "And provide an explicit, numbered list of required fixes for the developer team."
             )
