@@ -5,7 +5,8 @@ import httpx
 
 class UnifiedLLMClient:
     """
-    Multi-Provider LLM Client with Real-Time Dynamic Model & Combo Discovery.
+    Multi-Provider LLM Client with Real-Time Dynamic Model Discovery
+    and Universal SSE Stream + Standard JSON Parser.
     Optimized for 9Router local/cloud AI gateway with automatic fallback.
     """
     
@@ -49,7 +50,7 @@ class UnifiedLLMClient:
         temperature: float = 0.2
     ) -> Dict[str, Any]:
         """
-        Executes an asynchronous chat completion request and normalizes the response.
+        Executes chat completion request and handles both standard JSON and streaming SSE responses.
         """
         if not self.api_key and self.provider != "ollama":
             return {
@@ -93,9 +94,16 @@ class UnifiedLLMClient:
             try:
                 response = await client.post(endpoint, headers=headers, json=payload)
                 response.raise_for_status()
-                data = response.json()
+                
+                content_type = response.headers.get("content-type", "")
+                raw_text = response.text
+
+                # Check if the gateway returned an SSE event stream (e.g. 9Router default behavior)
+                if "text/event-stream" in content_type or raw_text.strip().startswith("data:"):
+                    return self._parse_sse_stream_response(raw_text)
 
                 if self.provider == "anthropic":
+                    data = response.json()
                     content_blocks = data.get("content", [])
                     text = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
                     return {
@@ -104,6 +112,7 @@ class UnifiedLLMClient:
                         "tool_calls": []
                     }
                 else:
+                    data = response.json()
                     choice = data.get("choices", [{}])[0]
                     message = choice.get("message", {})
                     return {
@@ -117,6 +126,65 @@ class UnifiedLLMClient:
                     "content": f"LLM Request failed ({self.provider} - {self.model}): {str(e)}",
                     "tool_calls": []
                 }
+
+    def _parse_sse_stream_response(self, raw_text: str) -> Dict[str, Any]:
+        """
+        Parses and aggregates text/event-stream chunks into a single completion object.
+        """
+        full_content_parts = []
+        tool_calls_map: Dict[int, Dict[str, Any]] = {}
+
+        for line in raw_text.splitlines():
+            line = line.strip()
+            if not line.startswith("data:") or line.startswith("data: [DONE]"):
+                continue
+
+            json_str = line[5:].strip()
+            if not json_str:
+                continue
+
+            try:
+                chunk = json.loads(json_str)
+                choices = chunk.get("choices", [])
+                if not choices:
+                    continue
+
+                choice = choices[0]
+                delta = choice.get("delta", {})
+
+                # Accumulate text content
+                if delta.get("content"):
+                    full_content_parts.append(delta["content"])
+
+                # Accumulate tool calls
+                if delta.get("tool_calls"):
+                    for tc in delta["tool_calls"]:
+                        idx = tc.get("index", 0)
+                        if idx not in tool_calls_map:
+                            tool_calls_map[idx] = {
+                                "id": tc.get("id", f"call_{idx}"),
+                                "type": tc.get("type", "function"),
+                                "function": {
+                                    "name": tc.get("function", {}).get("name", ""),
+                                    "arguments": tc.get("function", {}).get("arguments", "")
+                                }
+                            }
+                        else:
+                            fn = tc.get("function", {})
+                            if fn.get("name"):
+                                tool_calls_map[idx]["function"]["name"] += fn["name"]
+                            if fn.get("arguments"):
+                                tool_calls_map[idx]["function"]["arguments"] += fn["arguments"]
+
+            except Exception:
+                continue
+
+        final_tool_calls = list(tool_calls_map.values()) if tool_calls_map else []
+        return {
+            "role": "assistant",
+            "content": "".join(full_content_parts),
+            "tool_calls": final_tool_calls
+        }
 
     @classmethod
     async def fetch_dynamic_9router_models(cls, api_key: Optional[str] = None) -> List[str]:
@@ -210,13 +278,25 @@ class UnifiedLLMClient:
             {
                 "id": "gemini",
                 "name": "Google Gemini",
-                "models": ["gemini-2.0-flash", "gemini-1.5-pro"],
+                "models": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
                 "default_model": "gemini-2.0-flash"
             },
             {
                 "id": "openai",
                 "name": "OpenAI",
-                "models": ["gpt-4o", "gpt-4o-mini"],
+                "models": ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
                 "default_model": "gpt-4o"
+            },
+            {
+                "id": "anthropic",
+                "name": "Anthropic Claude",
+                "models": ["claude-3-7-sonnet", "claude-3-5-sonnet", "claude-3-5-haiku"],
+                "default_model": "claude-3-7-sonnet"
+            },
+            {
+                "id": "ollama",
+                "name": "Ollama / Local LLM",
+                "models": ["deepseek-r1:latest", "qwen2.5-coder:latest", "llama3.3:latest"],
+                "default_model": "deepseek-r1:latest"
             }
         ]
