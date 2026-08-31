@@ -66,6 +66,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSendMessage,
   onStopStreaming,
   onReviewDiff,
+  onRefreshModels,
 }) => {
   const [inputPrompt, setInputPrompt] = useState("");
   const [showSettings, setShowSettings] = useState(false);
