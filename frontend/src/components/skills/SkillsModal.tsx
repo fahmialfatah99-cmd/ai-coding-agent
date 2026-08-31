@@ -14,6 +14,7 @@ import {
   Layers,
   ShieldCheck,
   Cpu,
+  Palette,
 } from "lucide-react";
 import { readFile, writeFile } from "@/lib/api";
 
@@ -120,6 +121,24 @@ export const SkillsModal: React.FC<SkillsModalProps> = ({
       color: "text-rose-400 bg-rose-950/50 border-rose-800/50",
       description: "Mencatat aturan kustom, preferensi coding, dan arsitektur ke dalam file MEMORY.md permanen.",
       trigger: "Otomatis dipanggil saat Anda memberi instruksi aturan / 'Ingat bahwa...'."
+    },
+    {
+      id: "ui_ux_pro_max",
+      name: "UI/UX Pro Max Design Intelligence",
+      category: "UI/UX Design Engine",
+      icon: Palette,
+      color: "text-fuchsia-400 bg-fuchsia-950/50 border-fuchsia-800/50",
+      description: "AI design system terintegrasi: 84 UI styles, 192 color palettes, 74 font pairings, 98 UX micro-interaction guidelines, dan responsive glassmorphism/dark mode standard (NextLevelBuilder).",
+      trigger: "Otomatis aktif saat mendesain UI, Tailwind CSS, landing page, dan komponen frontend."
+    },
+    {
+      id: "superpowers_suite",
+      name: "Superpowers Engineering Suite",
+      category: "Advanced Quality & TDD",
+      icon: ShieldCheck,
+      color: "text-amber-400 bg-amber-950/50 border-amber-800/50",
+      description: "Suite kemampuan software engineering tingkat lanjut: Systematic Debugging (analisis root-cause sebelum coding), Test-Driven Development (TDD), Verification Gates, dan Multi-Agent Planning (Obra).",
+      trigger: "Otomatis aktif pada alur investigasi bug, perencanaan arsitektur, dan audit gatekeeper."
     }
   ];
 
@@ -155,7 +174,7 @@ export const SkillsModal: React.FC<SkillsModalProps> = ({
             }`}
           >
             <Wrench className="w-3.5 h-3.5" />
-            <span>Active Skills & Tools (6)</span>
+            <span>Active Skills & Intelligence ({skillsList.length})</span>
           </button>
 
           <button

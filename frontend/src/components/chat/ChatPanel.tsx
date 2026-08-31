@@ -20,6 +20,9 @@ import {
   Trash2,
   CheckCircle,
   Activity,
+  Users,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { ModelProvider, AgentSSEEvent } from "@/lib/api";
 
@@ -27,6 +30,11 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  agentRole?: "architect" | "frontend" | "backend" | "auditor";
+  agentName?: string;
+  auditStatus?: "pending" | "passed" | "rejected";
+  auditCycle?: number;
+  auditFeedback?: string;
   thoughts?: string[];
   toolCalls?: {
     tool: string;
@@ -49,6 +57,8 @@ interface ChatPanelProps {
   onModelChange: (model: string) => void;
   apiKey: string;
   onApiKeyChange: (key: string) => void;
+  mode?: "solo" | "team";
+  onModeChange?: (mode: "solo" | "team") => void;
   messages: ChatMessage[];
   isStreaming: boolean;
   onSendMessage: (prompt: string) => void;
@@ -68,6 +78,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onModelChange,
   apiKey,
   onApiKeyChange,
+  mode = "team",
+  onModeChange,
   messages,
   isStreaming,
   onSendMessage,
@@ -164,6 +176,40 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Multi-Agent Mode Switcher Bar */}
+      <div className="flex items-center justify-between px-3.5 py-1.5 bg-[#171717] border-b border-neutral-800 text-xs select-none">
+        <div className="flex items-center gap-1.5 text-neutral-400 font-medium text-[11px]">
+          <Users className="w-3.5 h-3.5 text-purple-400" />
+          <span>Workflow:</span>
+        </div>
+        <div className="flex items-center bg-neutral-900 border border-neutral-700/80 rounded-md p-0.5">
+          <button
+            type="button"
+            onClick={() => onModeChange && onModeChange("team")}
+            className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition ${
+              mode === "team"
+                ? "bg-purple-600 text-white shadow-sm"
+                : "text-neutral-400 hover:text-neutral-200"
+            }`}
+            title="Tim Coding: Lead Architect + Frontend + Backend + Strict Quality Auditor dengan Automated Rework"
+          >
+            <span>👥 Team Swarm + Audit</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange && onModeChange("solo")}
+            className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition ${
+              mode === "solo"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-neutral-400 hover:text-neutral-200"
+            }`}
+            title="Single ReAct Agent"
+          >
+            <span>⚡ Solo Agent</span>
+          </button>
         </div>
       </div>
 
@@ -285,10 +331,32 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${
                   msg.role === "user"
                     ? "bg-blue-600 text-white"
+                    : msg.agentRole === "architect"
+                    ? "bg-blue-600 text-white shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+                    : msg.agentRole === "frontend"
+                    ? "bg-purple-600 text-white shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+                    : msg.agentRole === "backend"
+                    ? "bg-emerald-600 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                    : msg.agentRole === "auditor"
+                    ? msg.auditStatus === "rejected"
+                      ? "bg-rose-600 text-white shadow-[0_0_8px_rgba(244,63,94,0.5)]"
+                      : "bg-amber-600 text-white shadow-[0_0_8px_rgba(245,158,11,0.5)]"
                     : "bg-purple-600 text-white shadow-[0_0_8px_rgba(168,85,247,0.4)]"
                 }`}
               >
-                {msg.role === "user" ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                {msg.role === "user" ? (
+                  <User className="w-3.5 h-3.5" />
+                ) : msg.agentRole === "architect" ? (
+                  <span>🎯</span>
+                ) : msg.agentRole === "frontend" ? (
+                  <span>🎨</span>
+                ) : msg.agentRole === "backend" ? (
+                  <span>⚙️</span>
+                ) : msg.agentRole === "auditor" ? (
+                  <span>🛡️</span>
+                ) : (
+                  <Bot className="w-3.5 h-3.5" />
+                )}
               </div>
 
               <div className="flex flex-col gap-2 w-full">
@@ -299,6 +367,75 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-2 w-full">
+                    {/* Agent Persona Badge */}
+                    {msg.agentName && (
+                      <div
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border shadow-sm ${
+                          msg.agentRole === "architect"
+                            ? "bg-blue-950/80 border-blue-600/60 text-blue-300"
+                            : msg.agentRole === "frontend"
+                            ? "bg-purple-950/80 border-purple-600/60 text-purple-300"
+                            : msg.agentRole === "backend"
+                            ? "bg-emerald-950/80 border-emerald-600/60 text-emerald-300"
+                            : msg.auditStatus === "rejected"
+                            ? "bg-rose-950/80 border-rose-600/60 text-rose-300 animate-pulse"
+                            : msg.auditStatus === "passed"
+                            ? "bg-emerald-950/80 border-emerald-600/60 text-emerald-300"
+                            : "bg-amber-950/80 border-amber-600/60 text-amber-300"
+                        }`}
+                      >
+                        <span>
+                          {msg.agentRole === "architect"
+                            ? "🎯"
+                            : msg.agentRole === "frontend"
+                            ? "🎨"
+                            : msg.agentRole === "backend"
+                            ? "⚙️"
+                            : "🛡️"}
+                        </span>
+                        <span>{msg.agentName}</span>
+                        {msg.auditCycle && (
+                          <span className="opacity-75">· Siklus {msg.auditCycle}/3</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Audit Verdict Banner */}
+                    {msg.auditStatus && (
+                      <div
+                        className={`p-3 rounded-lg border text-xs leading-relaxed shadow-md ${
+                          msg.auditStatus === "rejected"
+                            ? "bg-rose-950/40 border-rose-700/60 text-rose-200"
+                            : "bg-emerald-950/40 border-emerald-700/60 text-emerald-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-bold text-xs mb-1">
+                          <span className="flex items-center gap-1.5">
+                            {msg.auditStatus === "rejected" ? (
+                              <>
+                                <ShieldAlert className="w-4 h-4 text-rose-400" />
+                                ❌ AUDIT REJECTED (REWORK TRIGGERED)
+                              </>
+                            ) : (
+                              <>
+                                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                                ✅ AUDIT QUALITY APPROVED
+                              </>
+                            )}
+                          </span>
+                          {msg.auditCycle && (
+                            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-black/40 border border-white/10">
+                              Siklus {msg.auditCycle}/3
+                            </span>
+                          )}
+                        </div>
+                        {msg.auditFeedback && (
+                          <div className="mt-1.5 text-[11px] text-rose-300/90 whitespace-pre-wrap bg-black/30 p-2 rounded border border-rose-900/40">
+                            {msg.auditFeedback}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* Thought Expander */}
                     {msg.thoughts && msg.thoughts.length > 0 && (
                       <div className="bg-neutral-900/90 border border-neutral-800 rounded-md overflow-hidden text-xs">

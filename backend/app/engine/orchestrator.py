@@ -180,19 +180,29 @@ class AgentOrchestrator:
         pattern = r"```(?:(\w+)(?::([^\n]+)|(?:\s+([^\n]+)))?)?\n([\s\S]*?)```"
         matches = re.findall(pattern, text)
         results = []
+        ignored_langs = {"bash", "sh", "shell", "output", "terminal", "log", "console", "cmd", "powershell", "text", "txt"}
+        valid_exts = {".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".htm", ".css", ".json", ".sql", ".md", ".vue", ".svelte", ".yaml", ".yml"}
+        
         for lang, explicit_path1, explicit_path2, code in matches:
-            path = explicit_path1.strip() or explicit_path2.strip()
+            lang_clean = (lang or "").lower().strip()
+            if lang_clean in ignored_langs:
+                continue
+
+            path = (explicit_path1 or explicit_path2 or "").strip()
+            if path and (" " in path or not any(path.endswith(ext) for ext in valid_exts)):
+                path = ""
+
             if not path:
                 first_line = code.split("\n", 1)[0].strip()
-                if first_line.startswith(("#", "//", "/*", "<!--")) and ("." in first_line):
+                if first_line.startswith(("#", "//", "/*", "<!--")):
                     cleaned = re.sub(r"^[#/\*<!\- ]+", "", first_line).replace("-->", "").strip()
-                    if len(cleaned.split()) == 1 and "." in cleaned:
+                    if " " not in cleaned and any(cleaned.endswith(ext) for ext in valid_exts):
                         path = cleaned
 
-            if not path and lang:
-                ext_map = {"python": "py", "javascript": "js", "typescript": "ts", "html": "html", "css": "css"}
-                ext = ext_map.get(lang.lower(), lang.lower())
-                path = f"app.{ext}"
+            if not path and lang_clean:
+                ext_map = {"python": "py", "javascript": "js", "typescript": "ts", "html": "html", "css": "css", "sql": "sql"}
+                if lang_clean in ext_map:
+                    path = f"app.{ext_map[lang_clean]}"
 
             if path and code.strip():
                 results.append({"path": path, "content": code.strip()})
@@ -468,3 +478,343 @@ class AgentOrchestrator:
             yield f"data: {json.dumps({'type': 'error', 'content': f'Execution error: {str(e)}'})}\n\n"
         finally:
             self.sandbox.cleanup()
+
+    async def run_team_swarm_loop(
+        self,
+        user_instruction: str,
+        active_file: Optional[str] = None,
+        file_content: Optional[str] = None,
+        max_audit_cycles: int = 3
+    ) -> AsyncGenerator[str, None]:
+        """
+        Executes Collaborative Multi-Agent Team Swarm with Quality Audit & Autonomous Rework Loop:
+        1. 🎯 Lead System Architect (Planner)
+        2. 🎨 Senior Frontend & ⚙️ Backend Engineers (Builders)
+        3. 🛡️ Strict Quality & Security Auditor (Audit Gatekeeper)
+        4. 🔄 Autonomous Rework Feedback Loop
+        Uses 1 single centralized 9Router API Key safely and sequentially.
+        """
+        self.sandbox.start_sandbox()
+
+        # Shared Project Context & Memory
+        memory_files = ["MEMORY.md", ".agent/rules.md", ".cursorrules", "ARCHITECTURE.md"]
+        learned_knowledge = []
+        for mf in memory_files:
+            mf_path = os.path.join(self.workspace_path, mf)
+            if os.path.exists(mf_path):
+                try:
+                    with open(mf_path, "r", encoding="utf-8") as f:
+                        learned_knowledge.append(f"### 🧠 Persistent Memory (`{mf}`):\n{f.read()}")
+                except Exception:
+                    pass
+
+        memory_ctx = "\n\n" + "\n\n".join(learned_knowledge) if learned_knowledge else ""
+
+        # Fetch current workspace file list for context
+        current_files_res = await self.execute_tool("list_workspace_files", {})
+        existing_files = current_files_res.get("files", [])
+        files_summary = ", ".join(existing_files[:20]) if existing_files else "Empty workspace"
+
+        # =========================================================================
+        # PHASE 1: 🎯 LEAD SYSTEM ARCHITECT (Blueprint & Task Planning)
+        # =========================================================================
+        yield f"data: {json.dumps({'type': 'thought', 'agent_role': 'architect', 'agent_name': 'Lead System Architect', 'content': '🎯 [Lead Architect] Analyzing requirements, repository structure, and designing implementation blueprint...'})}\n\n"
+
+        architect_system = (
+            "You are the Lead System Architect & Technical Director of an Elite AI Software Engineering Team equipped with Superpowers Multi-Agent Planning Suite.\n"
+            "Your objective: Break down the user instruction into a crisp, highly actionable multi-step blueprint following Systematic Architecture & TDD principles.\n"
+            "Specify:\n"
+            "1. Architectural design & tech stack strategy.\n"
+            "2. Required files and component breakdown.\n"
+            "3. Clear task delegation for the Frontend Specialist (UI/UX Pro Max 84 styles, Tailwind CSS, Lucide icons, responsive layout) and Backend Engineer (Logic, APIs, Schema, Scripts, Tests).\n"
+            "Keep your plan concise, professional, and directly actionable."
+            f"{memory_ctx}"
+        )
+
+        arch_prompt = f"User Request: {user_instruction}\nWorkspace Files: {files_summary}"
+        if active_file:
+            arch_prompt += f"\nTarget Active File: `{active_file}`"
+
+        arch_res = await self.llm_client.chat_completion(
+            messages=[
+                {"role": "system", "content": architect_system},
+                {"role": "user", "content": arch_prompt}
+            ],
+            temperature=0.1
+        )
+
+        plan_content = arch_res.get("content", "Blueprint dirancang untuk dieksekusi oleh tim developer.")
+        arch_msg = {
+            "type": "message",
+            "agent_role": "architect",
+            "agent_name": "Lead System Architect",
+            "content": f"### 🎯 Blueprint Arsitektur Tim:\n\n{plan_content}"
+        }
+        yield f"data: {json.dumps(arch_msg)}\n\n"
+
+        # Track all modified files across the swarm session
+        all_modified_files: Dict[str, str] = {}
+        last_builder_role = "frontend" if any(k in user_instruction.lower() for k in ["ui", "css", "html", "tampilan", "web", "frontend", "desain"]) else "backend"
+
+        # =========================================================================
+        # PHASE 2 & 4: 🛠️ BUILDER EXECUTION & 🔄 AUTONOMOUS REWORK LOOP
+        # =========================================================================
+        audit_feedback = ""
+        audit_verdict = "REJECTED"
+
+        for cycle in range(max_audit_cycles):
+            cycle_num = cycle + 1
+            is_rework = cycle > 0
+
+            # Determine builder persona based on task/feedback
+            if "frontend" in audit_feedback.lower() or "css" in audit_feedback.lower() or "html" in audit_feedback.lower():
+                builder_role = "frontend"
+                builder_name = "Senior Frontend & UI/UX Specialist"
+                builder_icon = "🎨"
+            elif "backend" in audit_feedback.lower() or "api" in audit_feedback.lower() or "database" in audit_feedback.lower() or "server" in audit_feedback.lower():
+                builder_role = "backend"
+                builder_name = "Senior Backend & Core Systems Engineer"
+                builder_icon = "⚙️"
+            else:
+                builder_role = last_builder_role
+                builder_name = "Senior Frontend & UI/UX Specialist" if builder_role == "frontend" else "Senior Backend & Core Systems Engineer"
+                builder_icon = "🎨" if builder_role == "frontend" else "⚙️"
+
+            last_builder_role = builder_role
+
+            if is_rework:
+                rework_thought = {
+                    "type": "thought",
+                    "agent_role": builder_role,
+                    "agent_name": builder_name,
+                    "audit_status": "rejected",
+                    "audit_cycle": cycle_num,
+                    "content": f"{builder_icon} [{builder_name}] Menerima catatan audit (Siklus {cycle_num}/{max_audit_cycles}). Memperbaiki & merefaktor kode..."
+                }
+                yield f"data: {json.dumps(rework_thought)}\n\n"
+            else:
+                init_thought = {
+                    "type": "thought",
+                    "agent_role": builder_role,
+                    "agent_name": builder_name,
+                    "content": f"{builder_icon} [{builder_name}] Mengimplementasikan kode sesuai blueprint arsitektur..."
+                }
+                yield f"data: {json.dumps(init_thought)}\n\n"
+
+            ui_ux_pro_max_directives = (
+                "\n\n### 🎨 UI/UX Pro Max 2.13.0 Design Intelligence Activated:\n"
+                "- Apply modern design standards: 84 UI styles (Glassmorphism, Bento Grid, Minimalist Dark, Cyberpunk, Apple Clean), 192 cohesive color palettes, 74 font pairings, 98 UX micro-interaction guidelines.\n"
+                "- Use Tailwind CSS classes with refined spacing (p-4 md:p-8, gap-4 md:gap-6, rounded-xl md:rounded-2xl), backdrop-filter blurs, subtle borders (border-white/10 or border-neutral-800), hover micro-transitions (transition-all duration-200 hover:scale-[1.02]), and Lucide icons.\n"
+                "- Ensure responsive mobile-first layouts, high accessibility (semantic HTML5, ARIA labels, strong contrast), and zero visual artifacts."
+            )
+            superpowers_directives = (
+                "\n\n### ⚡ Superpowers Software Engineering Suite Activated:\n"
+                "- Apply Systematic Debugging & Test-Driven Development (TDD) best practices.\n"
+                "- Ensure atomic surgical modifications, robust error boundary handling, and verified output correctness."
+            )
+
+            builder_system = (
+                f"You are the {builder_name} in an Elite AI Engineering Team.\n"
+                "MANDATORY DIRECTIVES:\n"
+                "1. DIRECT CODE EXECUTION: You MUST ALWAYS invoke `write_file` or `apply_diff_patch` to create and update code files in the workspace.\n"
+                "2. QUALITY FIRST: Implement complete, robust, clean, and production-ready code with zero placeholder comments.\n"
+                "3. SELF-TESTING: Run tests or validation via `run_sandbox_command` when needed."
+                f"{ui_ux_pro_max_directives if builder_role == 'frontend' else superpowers_directives}"
+                f"{memory_ctx}"
+            )
+
+            builder_user_prompt = f"User Request: {user_instruction}\nArchitect Plan:\n{plan_content}"
+            if is_rework and audit_feedback:
+                builder_user_prompt += f"\n\n🚨 CRITICAL AUDIT FEEDBACK (FIX ALL ISSUES):\n{audit_feedback}"
+
+            builder_messages: List[Dict[str, Any]] = [
+                {"role": "system", "content": builder_system},
+                {"role": "user", "content": builder_user_prompt}
+            ]
+
+            # Builder ReAct Loop (Up to 4 iterations per cycle)
+            for b_iter in range(4):
+                b_res = await self.llm_client.chat_completion(
+                    messages=builder_messages,
+                    tools=self._get_tools_definition(),
+                    temperature=0.1
+                )
+
+                if b_res.get("reasoning"):
+                    yield f"data: {json.dumps({'type': 'thought', 'agent_role': builder_role, 'agent_name': builder_name, 'content': b_res['reasoning'].strip()})}\n\n"
+
+                tool_calls = b_res.get("tool_calls", [])
+
+                # Auto-fallback code extraction if code blocks present
+                if not tool_calls and b_res.get("content"):
+                    extracted = self._extract_code_blocks(b_res["content"])
+                    if extracted:
+                        for blk in extracted:
+                            res = await self.execute_tool("write_file", blk)
+                            all_modified_files[blk["path"]] = blk["content"]
+                            yield f"data: {json.dumps({'type': 'tool_call', 'agent_role': builder_role, 'agent_name': builder_name, 'tool': 'write_file', 'args': blk})}\n\n"
+                            yield f"data: {json.dumps({'type': 'tool_result', 'agent_role': builder_role, 'agent_name': builder_name, 'tool': 'write_file', 'result': res})}\n\n"
+                            yield f"data: {json.dumps({'type': 'file_modified', 'agent_role': builder_role, 'path': blk['path'], 'diff': res.get('diff', '')})}\n\n"
+
+                assistant_entry: Dict[str, Any] = {
+                    "role": "assistant",
+                    "content": b_res.get("content") or None
+                }
+                if tool_calls:
+                    fmt_calls = []
+                    for idx, tc in enumerate(tool_calls):
+                        c_id = tc.get("id") or f"team_call_{idx}_{b_iter}"
+                        tc["id"] = c_id
+                        fmt_calls.append({
+                            "id": c_id,
+                            "type": "function",
+                            "function": {
+                                "name": tc["function"]["name"],
+                                "arguments": tc["function"]["arguments"] if isinstance(tc["function"]["arguments"], str) else json.dumps(tc["function"]["arguments"])
+                            }
+                        })
+                    assistant_entry["tool_calls"] = fmt_calls
+                builder_messages.append(assistant_entry)
+
+                if not tool_calls:
+                    if b_res.get("content"):
+                        yield f"data: {json.dumps({'type': 'message', 'agent_role': builder_role, 'agent_name': builder_name, 'content': b_res['content']})}\n\n"
+                    break
+
+                for idx, tc in enumerate(tool_calls):
+                    fn_name = tc["function"]["name"]
+                    raw_args = tc["function"].get("arguments", "{}")
+                    try:
+                        fn_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    except Exception:
+                        fn_args = {}
+
+                    yield f"data: {json.dumps({'type': 'tool_call', 'agent_role': builder_role, 'agent_name': builder_name, 'tool': fn_name, 'args': fn_args})}\n\n"
+
+                    tool_res = await self.execute_tool(fn_name, fn_args)
+
+                    if fn_name == "write_file" and "path" in fn_args:
+                        all_modified_files[fn_args["path"]] = fn_args.get("content", "")
+                    elif fn_name == "apply_diff_patch" and "path" in fn_args:
+                        read_back = await self.execute_tool("read_file", {"path": fn_args["path"]})
+                        if "content" in read_back:
+                            all_modified_files[fn_args["path"]] = read_back["content"]
+
+                    yield f"data: {json.dumps({'type': 'tool_result', 'agent_role': builder_role, 'agent_name': builder_name, 'tool': fn_name, 'result': tool_res})}\n\n"
+
+                    if "diff" in tool_res and tool_res["diff"]:
+                        yield f"data: {json.dumps({'type': 'file_modified', 'agent_role': builder_role, 'path': tool_res.get('file_path'), 'diff': tool_res['diff']})}\n\n"
+                    elif fn_name in {"write_file", "record_learned_knowledge"} and tool_res.get("status") == "success":
+                        target_p = tool_res.get("file_path", fn_args.get("path"))
+                        yield f"data: {json.dumps({'type': 'file_modified', 'agent_role': builder_role, 'path': target_p, 'diff': tool_res.get('diff', '')})}\n\n"
+
+                    builder_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", f"team_call_{idx}_{b_iter}"),
+                        "content": json.dumps(tool_res) if isinstance(tool_res, dict) else str(tool_res)
+                    })
+
+            # =====================================================================
+            # PHASE 3: 🛡️ STRICT QUALITY & SECURITY AUDITOR GATEKEEPER
+            # =====================================================================
+            auditor_thought = {
+                "type": "thought",
+                "agent_role": "auditor",
+                "agent_name": "Strict Quality Auditor",
+                "audit_status": "pending",
+                "audit_cycle": cycle_num,
+                "content": f"🛡️ [Quality Auditor] Menginspeksi seluruh perubahan file kode (Siklus Audit {cycle_num}/{max_audit_cycles})..."
+            }
+            yield f"data: {json.dumps(auditor_thought)}\n\n"
+
+            # Gather current contents of all modified files for rigorous review
+            files_code_bundle = []
+            for path_k in list(all_modified_files.keys()):
+                read_res = await self.execute_tool("read_file", {"path": path_k})
+                if "content" in read_res:
+                    files_code_bundle.append(f"--- File: `{path_k}` ---\n```\n{read_res['content']}\n```")
+
+            code_to_audit = "\n\n".join(files_code_bundle) if files_code_bundle else "No files modified."
+
+            auditor_system = (
+                "You are the Strict Quality & Security Auditor (Audit Gatekeeper) of an Elite AI Software Engineering Team, equipped with Superpowers Verification Gates and UI/UX Pro Max Quality Standards.\n"
+                "Your mission: Thoroughly review all generated code against:\n"
+                "1. Correctness & completeness according to the user request.\n"
+                "2. Clean syntax, zero placeholder gaps, proper imports, and modern coding standards.\n"
+                "3. Security safeguards (no raw script injections, proper escaping, safe input handling).\n"
+                "4. UI/UX Pro Max Design Compliance: Responsive layout (Tailwind CSS), high visual polish, semantic accessibility, and robust error handling.\n\n"
+                "VERDICT RULES:\n"
+                "- If all files meet high production standards, end your response with:\n"
+                "VERDICT: PASSED\n"
+                "- If there are any bugs, missing requirements, broken styling, or vulnerabilities, end with:\n"
+                "VERDICT: REJECTED\n"
+                "And provide an explicit, numbered list of required fixes for the developer team."
+            )
+
+            audit_eval_prompt = (
+                f"User Request: {user_instruction}\n\n"
+                f"Workspace Code Under Audit:\n{code_to_audit}"
+            )
+
+            audit_res = await self.llm_client.chat_completion(
+                messages=[
+                    {"role": "system", "content": auditor_system},
+                    {"role": "user", "content": audit_eval_prompt}
+                ],
+                temperature=0.1
+            )
+
+            audit_text = audit_res.get("content", "")
+
+            # Check verdict
+            if "VERDICT: PASSED" in audit_text.upper():
+                audit_verdict = "PASSED"
+                clean_report = audit_text.replace("VERDICT: PASSED", "").strip()
+                passed_event = {
+                    "type": "audit",
+                    "agent_role": "auditor",
+                    "agent_name": "Strict Quality Auditor",
+                    "audit_status": "passed",
+                    "audit_cycle": cycle_num,
+                    "content": f"### 🛡️ Laporan Audit Kualitas: ✅ PASSED (Lolos)\n\n{clean_report}"
+                }
+                yield f"data: {json.dumps(passed_event)}\n\n"
+                break
+            else:
+                audit_verdict = "REJECTED"
+                audit_feedback = audit_text
+                clean_report = audit_text.replace("VERDICT: REJECTED", "").strip()
+
+                if cycle < max_audit_cycles - 1:
+                    rej_event = {
+                        "type": "audit",
+                        "agent_role": "auditor",
+                        "agent_name": "Strict Quality Auditor",
+                        "audit_status": "rejected",
+                        "audit_cycle": cycle_num,
+                        "audit_feedback": clean_report,
+                        "content": f"### 🛡️ Laporan Audit Kualitas: ❌ REJECTED (Perlu Revisi - Siklus {cycle_num}/{max_audit_cycles})\n\n{clean_report}\n\n> 🔄 *Tugas otomatis dilempar kembali ke tim developer untuk direvisi.*"
+                    }
+                    yield f"data: {json.dumps(rej_event)}\n\n"
+                else:
+                    max_event = {
+                        "type": "audit",
+                        "agent_role": "auditor",
+                        "agent_name": "Strict Quality Auditor",
+                        "audit_status": "passed",
+                        "audit_cycle": cycle_num,
+                        "content": f"### 🛡️ Laporan Audit Kualitas (Siklus Maksimal Selesai):\n\n{clean_report}"
+                    }
+                    yield f"data: {json.dumps(max_event)}\n\n"
+
+        # Final Delivery
+        status_text = "Tugas selesai dan telah diverifikasi lolos audit kualitas." if audit_verdict == "PASSED" else "Tugas selesai dengan catatan audit akhir."
+        done_event = {
+            "type": "done",
+            "agent_role": "auditor",
+            "agent_name": "Strict Quality Auditor",
+            "content": f"🎉 Kolaborasi Tim Coding Selesai: {status_text}"
+        }
+        yield f"data: {json.dumps(done_event)}\n\n"
+
+        self.sandbox.cleanup()

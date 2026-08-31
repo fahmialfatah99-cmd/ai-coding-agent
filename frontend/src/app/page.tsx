@@ -45,11 +45,12 @@ export default function Home() {
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("9router");
   const [selectedModel, setSelectedModel] = useState<string>("ag/gemini-3.7-flash-high");
-  const [apiKey, setApiKey] = useState<string>("sk-6414cfe3f30d0a5c-tpa041-d36f53fa");
+  const [apiKey, setApiKey] = useState<string>("sk-3b791e4140c2fd0c-s2g2dt-fe07f69f");
 
   // Chat & Terminal State with Persistence
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [executionMode, setExecutionMode] = useState<"solo" | "team">("team");
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
 
   // 1. Initial LocalStorage Restore & Initialization
@@ -60,11 +61,24 @@ export default function Home() {
       setTempWorkspaceInput(savedWorkspace);
     }
     // Restore Saved Settings
+    const default9RouterKey = "sk-3b791e4140c2fd0c-s2g2dt-fe07f69f";
     const savedKey = localStorage.getItem("ai_agent_api_key");
-    if (savedKey) setApiKey(savedKey);
+    if (savedKey && savedKey.startsWith("sk-")) {
+      setApiKey(savedKey);
+    } else {
+      setApiKey(default9RouterKey);
+      localStorage.setItem("ai_agent_api_key", default9RouterKey);
+    }
 
-    const savedProvider = localStorage.getItem("ai_agent_provider");
-    if (savedProvider) setSelectedProvider(savedProvider);
+    setSelectedProvider("9router");
+    localStorage.setItem("ai_agent_provider", "9router");
+
+    const savedMode = localStorage.getItem("ai_agent_execution_mode") as "solo" | "team" | null;
+    if (savedMode) {
+      setExecutionMode(savedMode);
+    } else {
+      setExecutionMode("team");
+    }
 
     const savedModel = localStorage.getItem("ai_agent_model");
     if (savedModel && savedModel !== "all") {
@@ -232,6 +246,7 @@ export default function Home() {
           active_file: activeFile || undefined,
           file_content: activeCode || undefined,
           workspace_path: workspacePath,
+          mode: executionMode,
           provider: selectedProvider,
           model: selectedModel,
           api_key: apiKey || undefined,
@@ -241,15 +256,22 @@ export default function Home() {
             prev.map((msg) => {
               if (msg.id !== assistantMsgId) return msg;
 
+              const role = event.agent_role || msg.agentRole;
+              const name = event.agent_name || msg.agentName;
+
               switch (event.type) {
                 case "thought":
                   return {
                     ...msg,
+                    agentRole: role,
+                    agentName: name,
                     thoughts: [...(msg.thoughts || []), event.content || ""],
                   };
                 case "tool_call":
                   return {
                     ...msg,
+                    agentRole: role,
+                    agentName: name,
                     toolCalls: [
                       ...(msg.toolCalls || []),
                       { tool: event.tool || "", args: event.args },
@@ -258,6 +280,8 @@ export default function Home() {
                 case "tool_result":
                   return {
                     ...msg,
+                    agentRole: role,
+                    agentName: name,
                     toolCalls: (msg.toolCalls || []).map((tc) =>
                       tc.tool === event.tool ? { ...tc, result: event.result } : tc
                     ),
@@ -265,6 +289,8 @@ export default function Home() {
                 case "file_modified":
                   return {
                     ...msg,
+                    agentRole: role,
+                    agentName: name,
                     modifiedFiles: [
                       ...(msg.modifiedFiles || []),
                       { path: event.path || "", diff: event.diff || "" },
@@ -273,16 +299,36 @@ export default function Home() {
                 case "warning":
                   return {
                     ...msg,
+                    agentRole: role,
+                    agentName: name,
                     warning: event.content,
+                  };
+                case "audit":
+                  return {
+                    ...msg,
+                    agentRole: event.agent_role || "auditor",
+                    agentName: event.agent_name || "Strict Quality Auditor",
+                    auditStatus: event.audit_status,
+                    auditCycle: event.audit_cycle,
+                    auditFeedback: event.audit_feedback,
+                    content: event.content
+                      ? msg.content
+                        ? `${msg.content}\n\n${event.content}`
+                        : event.content
+                      : msg.content,
                   };
                 case "message":
                   return {
                     ...msg,
+                    agentRole: role,
+                    agentName: name,
                     content: msg.content ? `${msg.content}\n\n${event.content}` : event.content || "",
                   };
                 case "done":
                   return {
                     ...msg,
+                    agentRole: role,
+                    agentName: name,
                     content: msg.content || event.content || "Pemeriksaan dan eksekusi tugas telah selesai.",
                     isStreaming: false,
                   };
@@ -695,6 +741,11 @@ export default function Home() {
               setApiKey(key);
               localStorage.setItem("ai_agent_api_key", key);
               refreshModelsList(key);
+            }}
+            mode={executionMode}
+            onModeChange={(m) => {
+              setExecutionMode(m);
+              localStorage.setItem("ai_agent_execution_mode", m);
             }}
             messages={messages}
             isStreaming={isStreaming}

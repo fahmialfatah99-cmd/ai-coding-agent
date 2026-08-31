@@ -3,6 +3,11 @@ import os
 import asyncio
 from typing import List, Dict, Any, Optional
 import httpx
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 class UnifiedLLMClient:
     """
@@ -12,7 +17,7 @@ class UnifiedLLMClient:
     """
     
     DEFAULT_BASE_URLS = {
-        "9router": "http://localhost:20128/v1",
+        "9router": os.getenv("NINEROUTER_BASE_URL", "http://host.docker.internal:20128/v1" if os.path.exists("/.dockerenv") else "http://127.0.0.1:20128/v1"),
         "openai": "https://api.openai.com/v1",
         "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
         "ollama": "http://localhost:11434/v1",
@@ -34,7 +39,7 @@ class UnifiedLLMClient:
         model: Optional[str] = None,
         base_url: Optional[str] = None,
     ):
-        self.provider = provider.lower()
+        self.provider = "9router" if provider.lower() in ("9router", "openai", "") else provider.lower()
         self.api_key = (
             api_key
             or os.getenv(f"{self.provider.upper()}_API_KEY", "")
@@ -42,7 +47,7 @@ class UnifiedLLMClient:
             or os.getenv("OPENAI_API_KEY", "")
         )
         self.model = model or self.DEFAULT_MODELS.get(self.provider, "ag/gemini-3.7-flash-high")
-        self.base_url = (base_url or self.DEFAULT_BASE_URLS.get(self.provider, "http://localhost:20128/v1")).rstrip("/")
+        self.base_url = (base_url or os.getenv("NINEROUTER_BASE_URL") or self.DEFAULT_BASE_URLS.get(self.provider, "http://127.0.0.1:20128/v1")).rstrip("/")
 
     async def chat_completion(
         self,
@@ -104,9 +109,10 @@ class UnifiedLLMClient:
                     payload["tool_choice"] = "auto"
                 endpoint = f"{self.base_url}/chat/completions"
 
-            for attempt in range(2):
+            max_attempts = 2
+            for attempt in range(max_attempts):
                 try:
-                    async with httpx.AsyncClient(timeout=25.0) as client:
+                    async with httpx.AsyncClient(timeout=90.0) as client:
                         response = await client.post(endpoint, headers=headers, json=payload)
                         response.raise_for_status()
                         
@@ -150,7 +156,7 @@ class UnifiedLLMClient:
 
         return {
             "role": "assistant",
-            "content": f"LLM Request failed after {max_retries} automatic retries ({self.provider} - {self.model}): {last_error}",
+            "content": f"LLM Request failed ({self.provider} - {self.model}): {last_error}",
             "tool_calls": [],
             "reasoning": ""
         }
@@ -232,10 +238,13 @@ class UnifiedLLMClient:
             headers["Authorization"] = f"Bearer {key}"
 
         candidate_urls = [
-            "http://localhost:20128/v1/models",
             "http://127.0.0.1:20128/v1/models",
+            "http://localhost:20128/v1/models",
+            "http://host.docker.internal:20128/v1/models",
             "https://api.9router.com/v1/models"
         ]
+        if os.getenv("NINEROUTER_BASE_URL"):
+            candidate_urls.insert(0, f"{os.getenv('NINEROUTER_BASE_URL').rstrip('/')}/models")
 
         async with httpx.AsyncClient(timeout=5.0) as client:
             for url in candidate_urls:
@@ -264,40 +273,16 @@ class UnifiedLLMClient:
     @classmethod
     async def get_supported_providers_async(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        Returns full provider list with dynamically detected 9Router combos and models.
+        Returns supported providers, exclusively optimized for 9Router with dynamic model discovery.
         """
         dynamic_9router_models = await cls.fetch_dynamic_9router_models(api_key)
 
         return [
             {
                 "id": "9router",
-                "name": "9Router (Auto-Detected Combos)",
+                "name": "9Router",
                 "models": dynamic_9router_models,
-                "default_model": dynamic_9router_models[0] if dynamic_9router_models else "all"
-            },
-            {
-                "id": "gemini",
-                "name": "Google Gemini",
-                "models": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
-                "default_model": "gemini-2.0-flash"
-            },
-            {
-                "id": "openai",
-                "name": "OpenAI",
-                "models": ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
-                "default_model": "gpt-4o"
-            },
-            {
-                "id": "anthropic",
-                "name": "Anthropic Claude",
-                "models": ["claude-3-7-sonnet", "claude-3-5-sonnet", "claude-3-5-haiku"],
-                "default_model": "claude-3-7-sonnet"
-            },
-            {
-                "id": "ollama",
-                "name": "Ollama / Local LLM",
-                "models": ["deepseek-r1:latest", "qwen2.5-coder:latest", "llama3.3:latest"],
-                "default_model": "deepseek-r1:latest"
+                "default_model": dynamic_9router_models[0] if dynamic_9router_models else "ag/gemini-3.7-flash-high"
             }
         ]
 
@@ -306,32 +291,16 @@ class UnifiedLLMClient:
         return [
             {
                 "id": "9router",
-                "name": "9Router (Auto-Detected Combos)",
-                "models": ["all", "ag/gemini-3.7-flash-high", "ag/claude-sonnet-4-6", "nvidia/deepseek-ai/deepseek-v4-pro"],
-                "default_model": "all"
-            },
-            {
-                "id": "gemini",
-                "name": "Google Gemini",
-                "models": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
-                "default_model": "gemini-2.0-flash"
-            },
-            {
-                "id": "openai",
-                "name": "OpenAI",
-                "models": ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
-                "default_model": "gpt-4o"
-            },
-            {
-                "id": "anthropic",
-                "name": "Anthropic Claude",
-                "models": ["claude-3-7-sonnet", "claude-3-5-sonnet", "claude-3-5-haiku"],
-                "default_model": "claude-3-7-sonnet"
-            },
-            {
-                "id": "ollama",
-                "name": "Ollama / Local LLM",
-                "models": ["deepseek-r1:latest", "qwen2.5-coder:latest", "llama3.3:latest"],
-                "default_model": "deepseek-r1:latest"
+                "name": "9Router",
+                "models": [
+                    "all",
+                    "ag/gemini-3.7-flash-high",
+                    "ag/gemini-3.7-flash-medium",
+                    "ag/claude-sonnet-4-6",
+                    "ag/claude-opus-4-6-thinking",
+                    "gemini/gemini-3.7-flash",
+                    "nvidia/deepseek-ai/deepseek-v4-pro"
+                ],
+                "default_model": "ag/gemini-3.7-flash-high"
             }
         ]

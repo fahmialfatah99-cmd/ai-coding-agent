@@ -60,7 +60,7 @@ def test_sandbox_local_execution():
     os.makedirs(test_dir, exist_ok=True)
     
     sandbox = DockerSandboxManager(workspace_path=test_dir)
-    res = sandbox.execute_command("python -c \"print('sandbox ok')\"")
+    res = sandbox.execute_command(f"{sys.executable} -c \"print('sandbox ok')\"")
     assert res["success"] is True
     assert "sandbox ok" in res["stdout"]
     print("[-] Sandbox execution test passed.")
@@ -68,14 +68,11 @@ def test_sandbox_local_execution():
 def test_llm_adapter_providers():
     providers = UnifiedLLMClient.get_supported_providers()
     provider_ids = [p["id"] for p in providers]
-    assert "openai" in provider_ids
-    assert "gemini" in provider_ids
-    assert "anthropic" in provider_ids
-    assert "ollama" in provider_ids
+    assert "9router" in provider_ids
     
-    client = UnifiedLLMClient(provider="gemini")
-    assert client.model == "gemini-2.0-flash"
-    print("[-] LLM Adapter multi-provider definition test passed.")
+    client = UnifiedLLMClient(provider="9router")
+    assert client.model == "ag/gemini-3.7-flash-high"
+    print("[-] LLM Adapter 9Router provider definition test passed.")
 
 def test_orchestrator_tools():
     test_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "test_workspace"))
@@ -153,7 +150,8 @@ def test_all_9_routers_endpoints():
     # 8. Models Router
     res = client.get("/api/v1/models")
     assert res.status_code == 200
-    assert len(res.json()["providers"]) >= 4
+    assert len(res.json()["providers"]) >= 1
+    assert res.json()["providers"][0]["id"] == "9router"
     
     # 9. Sessions Router
     res = client.get("/api/v1/sessions")
@@ -167,6 +165,11 @@ def test_all_9_routers_endpoints():
     })
     assert res.status_code == 200
     assert res.json()["has_changes"] is True
+
+    # 11. Agent Health Check
+    res = client.get("/api/v1/agent/health")
+    assert res.status_code == 200
+    assert res.json()["status"] == "ready"
     
     print("[-] All 9 Modular Router endpoints tested and PASSED successfully.")
 

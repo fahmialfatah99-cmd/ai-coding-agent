@@ -15,16 +15,18 @@ class AgentRunRequest(BaseModel):
     active_file: Optional[str] = None
     file_content: Optional[str] = None
     workspace_path: str = "./workspace"
-    provider: str = "openai"
-    model: Optional[str] = None
+    mode: str = "team"  # "team" (Multi-Agent Swarm + Auditor) or "solo" (Fast Solo ReAct)
+    provider: str = "9router"
+    model: Optional[str] = "ag/gemini-3.7-flash-high"
     api_key: Optional[str] = None
     base_url: Optional[str] = None
-    max_iterations: int = 6
+    max_iterations: int = 8
+    max_audit_cycles: int = 3
 
 @router.post("/run")
 async def run_agent_stream(req: AgentRunRequest):
     """
-    Executes the autonomous ReAct agent loop and streams real-time Server-Sent Events (SSE).
+    Executes the autonomous agent loop (Team Swarm or Solo) and streams real-time Server-Sent Events (SSE).
     """
     orchestrator = AgentOrchestrator(
         workspace_path=req.workspace_path,
@@ -34,13 +36,23 @@ async def run_agent_stream(req: AgentRunRequest):
         base_url=req.base_url
     )
     
-    return StreamingResponse(
-        orchestrator.run_agent_loop(
+    if req.mode.lower() == "team":
+        generator = orchestrator.run_team_swarm_loop(
+            user_instruction=req.instruction,
+            active_file=req.active_file,
+            file_content=req.file_content,
+            max_audit_cycles=req.max_audit_cycles
+        )
+    else:
+        generator = orchestrator.run_agent_loop(
             user_instruction=req.instruction,
             active_file=req.active_file,
             file_content=req.file_content,
             max_iterations=req.max_iterations
-        ),
+        )
+
+    return StreamingResponse(
+        generator,
         media_type="text/event-stream"
     )
 

@@ -16,8 +16,13 @@ export interface ModelProvider {
 }
 
 export interface AgentSSEEvent {
-  type: "thought" | "tool_call" | "tool_result" | "file_modified" | "warning" | "message" | "error" | "done";
+  type: "thought" | "tool_call" | "tool_result" | "file_modified" | "warning" | "message" | "audit" | "error" | "done";
   content?: string;
+  agent_role?: "architect" | "frontend" | "backend" | "auditor";
+  agent_name?: string;
+  audit_status?: "pending" | "passed" | "rejected";
+  audit_cycle?: number;
+  audit_feedback?: string;
   tool?: string;
   args?: Record<string, any>;
   result?: any;
@@ -111,6 +116,7 @@ export async function streamAgentTask(
     active_file?: string;
     file_content?: string;
     workspace_path: string;
+    mode?: "solo" | "team";
     provider: string;
     model?: string;
     api_key?: string;

@@ -49,4 +49,5 @@ Thumbs.db
 # Workspace / Temporary files
 /workspace/
 /backend/test_workspace/
+/skills/
 pgdata/

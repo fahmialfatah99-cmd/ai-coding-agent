@@ -33,12 +33,14 @@ class DockerSandboxManager:
         self.container = None
         self.docker_client = None
         
-        if HAS_DOCKER_LIB:
+        if HAS_DOCKER_LIB and not os.path.exists("/.dockerenv"):
             try:
                 self.docker_client = docker.from_env()
                 self.docker_client.ping()
             except Exception:
                 self.docker_client = None
+        else:
+            self.docker_client = None
 
     def start_sandbox(self) -> Optional[str]:
         """Starts the isolated container if Docker is available."""

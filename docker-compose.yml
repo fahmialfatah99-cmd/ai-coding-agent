@@ -21,14 +21,21 @@ services:
     container_name: coding_agent_backend
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@postgres:5432/ai_agent_db
+      NINEROUTER_API_KEY: ${NINEROUTER_API_KEY:-}
+      9ROUTER_API_KEY: ${NINEROUTER_API_KEY:-}
+      NINEROUTER_BASE_URL: http://host.docker.internal:20128/v1
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./workspace:/app/workspace
+      - ./skills:/app/skills
+      - /home/fahmial:/home/fahmial
     depends_on:
       - postgres
 
@@ -38,9 +45,9 @@ services:
       dockerfile: Dockerfile
     container_name: coding_agent_frontend
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:8000/api/v1
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       - backend
 
