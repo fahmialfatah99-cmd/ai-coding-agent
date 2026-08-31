@@ -32,9 +32,9 @@ export default function Home() {
 
   // LLM State
   const [providers, setProviders] = useState<ModelProvider[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState<string>("gemini");
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.0-flash");
-  const [apiKey, setApiKey] = useState<string>("");
+  const [selectedProvider, setSelectedProvider] = useState<string>("9router");
+  const [selectedModel, setSelectedModel] = useState<string>("claude-3-7-sonnet");
+  const [apiKey, setApiKey] = useState<string>("sk-6414cfe3f30d0a5c-tpa041-d36f53fa");
 
   // Chat & Terminal State
   const [messages, setMessages] = useState<ChatMessage[]>([]);

@@ -6,10 +6,11 @@ import httpx
 class UnifiedLLMClient:
     """
     Multi-Provider LLM Client using asynchronous HTTP requests (httpx)
-    supporting OpenAI, Google Gemini, Anthropic Claude, Ollama, and custom OpenAI-compatible endpoints.
+    supporting 9Router, OpenAI, Google Gemini, Anthropic Claude, Ollama, and OpenAI-compatible endpoints.
     """
     
     DEFAULT_BASE_URLS = {
+        "9router": "https://api.9router.com/v1",
         "openai": "https://api.openai.com/v1",
         "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
         "ollama": "http://localhost:11434/v1",
@@ -17,6 +18,7 @@ class UnifiedLLMClient:
     }
     
     DEFAULT_MODELS = {
+        "9router": "claude-3-7-sonnet",
         "openai": "gpt-4o",
         "gemini": "gemini-2.0-flash",
         "ollama": "deepseek-r1:latest",
@@ -25,7 +27,7 @@ class UnifiedLLMClient:
 
     def __init__(
         self,
-        provider: str = "openai",
+        provider: str = "9router",
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         base_url: Optional[str] = None,
@@ -34,10 +36,11 @@ class UnifiedLLMClient:
         self.api_key = (
             api_key
             or os.getenv(f"{self.provider.upper()}_API_KEY", "")
+            or os.getenv("NINEROUTER_API_KEY", "")
             or os.getenv("OPENAI_API_KEY", "")
         )
-        self.model = model or self.DEFAULT_MODELS.get(self.provider, "gpt-4o")
-        self.base_url = (base_url or self.DEFAULT_BASE_URLS.get(self.provider, "https://api.openai.com/v1")).rstrip("/")
+        self.model = model or self.DEFAULT_MODELS.get(self.provider, "claude-3-7-sonnet")
+        self.base_url = (base_url or self.DEFAULT_BASE_URLS.get(self.provider, "https://api.9router.com/v1")).rstrip("/")
 
     async def chat_completion(
         self,
@@ -49,7 +52,6 @@ class UnifiedLLMClient:
         Executes an asynchronous chat completion request and normalizes the response.
         """
         if not self.api_key and self.provider != "ollama":
-            # Return simulation message if no API key configured during offline tests
             return {
                 "role": "assistant",
                 "content": f"[Simulated Response from {self.provider} ({self.model})]: API key not set.",
@@ -63,7 +65,6 @@ class UnifiedLLMClient:
         if self.provider == "anthropic":
             headers["x-api-key"] = self.api_key
             headers["anthropic-version"] = "2023-06-01"
-            # Anthropic messages endpoint formatting
             payload = {
                 "model": self.model,
                 "messages": [m for m in messages if m.get("role") != "system"],
@@ -75,7 +76,7 @@ class UnifiedLLMClient:
                 payload["system"] = system_msg
             endpoint = f"{self.base_url}/messages"
         else:
-            # OpenAI / Gemini / Ollama OpenAI-compatible format
+            # 9Router / OpenAI / Gemini / Ollama (OpenAI-compatible)
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
             payload = {
@@ -113,13 +114,27 @@ class UnifiedLLMClient:
             except Exception as e:
                 return {
                     "role": "assistant",
-                    "content": f"LLM Request failed ({self.provider}): {str(e)}",
+                    "content": f"LLM Request failed ({self.provider} - {self.model}): {str(e)}",
                     "tool_calls": []
                 }
 
     @staticmethod
     def get_supported_providers() -> List[Dict[str, Any]]:
         return [
+            {
+                "id": "9router",
+                "name": "9Router (AI Gateway)",
+                "models": [
+                    "claude-3-7-sonnet",
+                    "claude-3-5-sonnet",
+                    "gpt-4o",
+                    "gpt-4o-mini",
+                    "gemini-2.0-flash",
+                    "deepseek-r1",
+                    "deepseek-v3"
+                ],
+                "default_model": "claude-3-7-sonnet"
+            },
             {
                 "id": "openai",
                 "name": "OpenAI",

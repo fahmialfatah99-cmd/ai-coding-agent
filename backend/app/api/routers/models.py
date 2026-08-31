@@ -17,14 +17,14 @@ class ProviderInfo(BaseModel):
 
 @router.get("", response_model=Dict[str, List[Dict[str, Any]]])
 async def list_models():
-    """Returns available LLM providers (OpenAI, Gemini, Claude, Ollama) and supported models."""
+    """Returns available LLM providers (9Router, OpenAI, Gemini, Claude, Ollama) and supported models."""
     return {"providers": UnifiedLLMClient.get_supported_providers()}
 
 @router.get("/active")
 async def get_active_model_defaults():
     """Returns default model configurations."""
     return {
-        "default_provider": "gemini",
-        "default_model": "gemini-2.0-flash",
+        "default_provider": "9router",
+        "default_model": "claude-3-7-sonnet",
         "supported_providers": UnifiedLLMClient.get_supported_providers()
     }
