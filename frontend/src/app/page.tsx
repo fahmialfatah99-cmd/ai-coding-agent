@@ -19,10 +19,12 @@ import {
   ModelProvider,
   AgentSSEEvent,
 } from "@/lib/api";
-import { Code2, FolderGit2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check } from "lucide-react";
 
 export default function Home() {
   const [workspacePath, setWorkspacePath] = useState("./workspace");
+  const [isEditingWorkspace, setIsEditingWorkspace] = useState(false);
+  const [tempWorkspaceInput, setTempWorkspaceInput] = useState("./workspace");
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
   const [activeCode, setActiveCode] = useState<string>("");
@@ -43,6 +45,11 @@ export default function Home() {
 
   // 1. Initial LocalStorage Restore & Initialization
   useEffect(() => {
+    const savedWorkspace = localStorage.getItem("ai_agent_workspace_path");
+    if (savedWorkspace) {
+      setWorkspacePath(savedWorkspace);
+      setTempWorkspaceInput(savedWorkspace);
+    }
     // Restore Saved Settings
     const savedKey = localStorage.getItem("ai_agent_api_key");
     if (savedKey) setApiKey(savedKey);
@@ -330,10 +337,49 @@ export default function Home() {
             <span>AI CODING AGENT</span>
           </div>
           <span className="text-neutral-600">|</span>
-          <div className="flex items-center gap-1.5 text-neutral-400 bg-neutral-900 px-2.5 py-1 rounded border border-neutral-800">
-            <FolderGit2 className="w-3.5 h-3.5 text-neutral-500" />
-            <span className="font-mono">{workspacePath}</span>
-          </div>
+          {isEditingWorkspace ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (tempWorkspaceInput.trim()) {
+                  const cleaned = tempWorkspaceInput.trim();
+                  setWorkspacePath(cleaned);
+                  localStorage.setItem("ai_agent_workspace_path", cleaned);
+                  setIsEditingWorkspace(false);
+                }
+              }}
+              className="flex items-center gap-1"
+            >
+              <input
+                type="text"
+                value={tempWorkspaceInput}
+                onChange={(e) => setTempWorkspaceInput(e.target.value)}
+                placeholder="C:/path/to/folder or ./workspace"
+                autoFocus
+                className="bg-neutral-950 border border-accent rounded px-2 py-0.5 font-mono text-[11px] text-neutral-200 focus:outline-none w-64"
+              />
+              <button
+                type="submit"
+                className="p-1 bg-accent text-white rounded hover:bg-blue-600 transition"
+                title="Apply Local Folder"
+              >
+                <Check className="w-3 h-3" />
+              </button>
+            </form>
+          ) : (
+            <div
+              onClick={() => {
+                setTempWorkspaceInput(workspacePath);
+                setIsEditingWorkspace(true);
+              }}
+              className="flex items-center gap-1.5 text-neutral-400 bg-neutral-900 hover:bg-neutral-800/80 cursor-pointer px-2.5 py-1 rounded border border-neutral-800 transition"
+              title="Click to change local target folder"
+            >
+              <FolderGit2 className="w-3.5 h-3.5 text-neutral-500" />
+              <span className="font-mono">{workspacePath}</span>
+              <Edit3 className="w-3 h-3 text-neutral-500 hover:text-neutral-300 ml-1" />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
