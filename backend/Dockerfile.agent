@@ -13,7 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz -o docker.tgz \
     && tar -xzf docker.tgz \
     && mv docker/docker /usr/local/bin/ \
-    && rm -rf docker docker.tgz /var/lib/apt/lists/*
+    && rm -rf docker docker.tgz /var/lib/apt/lists/* \
+    && git config --global --add safe.directory "*"
 
 WORKDIR /app
 

@@ -1,4 +1,11 @@
 import os
+import subprocess
+
+try:
+    subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"], capture_output=True)
+except Exception:
+    pass
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
