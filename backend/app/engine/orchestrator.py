@@ -141,6 +141,21 @@ class AgentOrchestrator:
             {
                 "type": "function",
                 "function": {
+                    "name": "git_commit_and_push",
+                    "description": "Stages all files, creates a descriptive git commit, and pushes directly to the GitHub remote repository.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "commit_message": {"type": "string", "description": "Meaningful git commit message (e.g. 'feat: implement user authentication')"},
+                            "branch": {"type": "string", "description": "Branch name to push to, defaults to 'main'"}
+                        },
+                        "required": ["commit_message"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "search_ast_symbols",
                     "description": "Searches functions, classes, and methods using Tree-sitter AST parsing.",
                     "parameters": {
@@ -275,6 +290,24 @@ class AgentOrchestrator:
                 "status": "success",
                 "file_path": rel_path,
                 "diff": diff
+            }
+
+        elif tool_name == "git_commit_and_push":
+            commit_msg = args.get("commit_message", "update codebase via AI Agent")
+            branch = args.get("branch", "main")
+            
+            repo_root = get_repo_root()
+            self.sandbox.execute_command(f'git -C "{repo_root}" add .')
+            commit_res = self.sandbox.execute_command(f'git -C "{repo_root}" commit -m "{commit_msg}"')
+            push_res = self.sandbox.execute_command(f'git -C "{repo_root}" push origin {branch}')
+            
+            is_ok = push_res.get("success", False) or "up to date" in (push_res.get("stderr", "") + commit_res.get("stdout", "")).lower()
+            return {
+                "status": "success" if is_ok else "failed",
+                "commit_message": commit_msg,
+                "branch": branch,
+                "stdout": push_res.get("stdout") or commit_res.get("stdout") or "",
+                "stderr": push_res.get("stderr") or ""
             }
 
         elif tool_name == "run_sandbox_command":
