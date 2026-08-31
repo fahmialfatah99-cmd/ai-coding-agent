@@ -272,11 +272,18 @@ export default function Home() {
                 case "message":
                   return {
                     ...msg,
-                    content: event.content || "",
+                    content: msg.content ? `${msg.content}\n\n${event.content}` : event.content || "",
                   };
                 case "done":
                   return {
                     ...msg,
+                    content: msg.content || event.content || "Pemeriksaan dan eksekusi tugas telah selesai.",
+                    isStreaming: false,
+                  };
+                case "error":
+                  return {
+                    ...msg,
+                    content: (msg.content ? `${msg.content}\n\n` : "") + `⚠️ Error: ${event.content}`,
                     isStreaming: false,
                   };
                 default:
@@ -284,6 +291,10 @@ export default function Home() {
               }
             })
           );
+
+          if (event.type === "done" || event.type === "error") {
+            setIsStreaming(false);
+          }
 
           // If file modified or created, automatically load it into Monaco Editor!
           if (event.type === "file_modified" && event.path) {

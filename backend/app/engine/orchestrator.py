@@ -384,6 +384,8 @@ class AgentOrchestrator:
                 messages.append(assistant_msg)
 
                 if not tool_calls:
+                    final_msg = llm_res.get("content") or "Pemeriksaan selesai. Seluruh file di workspace telah ditinjau dan siap digunakan."
+                    yield f"data: {json.dumps({'type': 'message', 'content': final_msg})}\n\n"
                     yield f"data: {json.dumps({'type': 'done', 'content': 'Task completed and verified.'})}\n\n"
                     break
 
