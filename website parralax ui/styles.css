@@ -1,0 +1,178 @@
+/* Custom Styles for Alfa Parallax Portfolio */
+
+/* Smooth Scroll Behavior */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0B0F19;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #1E293B;
+    border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #3B82F6;
+}
+
+/* Navigation Link Underline Effect */
+.nav-link {
+    position: relative;
+}
+
+.nav-link::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 2px;
+    bottom: -4px;
+    left: 0;
+    background: linear-gradient(to right, #3B82F6, #14B8A6);
+    transition: width 0.3s ease;
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+    width: 100%;
+}
+
+/* Parallax Hero Background Elements */
+#parallax-stars {
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+}
+
+#parallax-orb-1, #parallax-orb-2, #parallax-orb-3 {
+    will-change: transform;
+}
+
+#parallax-code-1, #parallax-code-2 {
+    will-change: transform;
+    transition: transform 0.1s ease-out;
+}
+
+/* Glassmorphism Card Effect */
+.glass-card {
+    background: rgba(22, 31, 48, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 20px 40px -15px rgba(3, 7, 18, 0.7), 0 0 30px -5px rgba(59, 130, 246, 0.15);
+}
+
+/* Filter Button Styling */
+.filter-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #9CA3AF;
+}
+
+.filter-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFF;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.filter-btn.active {
+    background: linear-gradient(135deg, #3B82F6, #14B8A6);
+    color: #FFF;
+    border-color: transparent;
+    box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
+}
+
+/* Language Badge Colors */
+.badge-python {
+    background: rgba(59, 130, 246, 0.1);
+    color: #60A5FA;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.badge-javascript {
+    background: rgba(234, 179, 8, 0.1);
+    color: #FACC15;
+    border: 1px solid rgba(234, 179, 8, 0.2);
+}
+
+.badge-typescript {
+    background: rgba(59, 130, 246, 0.1);
+    color: #93C5FD;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.badge-html {
+    background: rgba(249, 115, 22, 0.1);
+    color: #FB923C;
+    border: 1px solid rgba(249, 115, 22, 0.2);
+}
+
+.badge-css {
+    background: rgba(37, 99, 235, 0.1);
+    color: #60A5FA;
+    border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.badge-astro {
+    background: rgba(236, 72, 153, 0.1);
+    color: #F472B6;
+    border: 1px solid rgba(236, 72, 153, 0.2);
+}
+
+.badge-other {
+    background: rgba(156, 163, 175, 0.1);
+    color: #D1D5DB;
+    border: 1px solid rgba(156, 163, 175, 0.2);
+}
+
+/* Card Hover Glow Effect */
+.glow-on-hover {
+    position: relative;
+    overflow: hidden;
+}
+
+.glow-on-hover::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.05),
+        transparent
+    );
+    transition: 0.5s;
+}
+
+.glow-on-hover:hover::before {
+    left: 100%;
+}
+
+/* Animations */
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.animate-float {
+    animation: float 4s ease-in-out infinite;
+}

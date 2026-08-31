@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alfa | Parallax Portfolio & Showcase</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            dark: '#0B0F19',
+                            card: '#161F30',
+                            accent: '#3B82F6',
+                            purple: '#8B5CF6',
+                            teal: '#14B8A6',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-brand-dark text-gray-100 font-sans overflow-x-hidden selection:bg-blue-500 selection:text-white">
+
+    <!-- Loader -->
+    <div id="loader" class="fixed inset-0 z-50 flex items-center justify-center bg-brand-dark transition-opacity duration-700">
+        <div class="relative flex flex-col items-center">
+            <div class="w-20 h-20 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+            <span class="font-display text-xl font-bold tracking-widest text-blue-400 animate-pulse">ALFA.DEV</span>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 w-full z-40 transition-all duration-300 px-6 py-4 md:px-12" id="navbar">
+        <div class="max-w-7xl mx-auto flex items-center justify-between bg-brand-dark/40 backdrop-blur-md border border-white/10 px-6 py-3 rounded-full">
+            <a href="#" class="font-display text-2xl font-bold tracking-wider bg-gradient-to-r from-blue-400 via-teal-400 to-purple-500 bg-clip-text text-transparent">
+                ALFA<span class="text-blue-400">.</span>
+            </a>
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="#home" class="nav-link text-sm font-medium text-gray-300 hover:text-white transition-colors">Home</a>
+                <a href="#about" class="nav-link text-sm font-medium text-gray-300 hover:text-white transition-colors">Tentang</a>
+                <a href="#repositories" class="nav-link text-sm font-medium text-gray-300 hover:text-white transition-colors">Repository</a>
+                <a href="#stats" class="nav-link text-sm font-medium text-gray-300 hover:text-white transition-colors">Statistik</a>
+                <a href="#contact" class="nav-link text-sm font-medium text-gray-300 hover:text-white transition-colors">Kontak</a>
+            </div>
+            <div class="flex items-center space-x-4">
+                <a href="https://github.com/fahmialfatah99-cmd" target="_blank" rel="noopener noreferrer" class="bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-full transition-all duration-300 border border-white/10 hover:border-white/20">
+                    <i class="fab fa-github text-lg"></i>
+                </a>
+                <button class="md:hidden text-gray-300 hover:text-white focus:outline-none" id="menu-btn">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div class="hidden md:hidden mt-3 bg-brand-card/95 backdrop-blur-lg border border-white/10 rounded-2xl p-6 absolute left-6 right-6 shadow-2xl transition-all duration-300" id="mobile-menu">
+            <div class="flex flex-col space-y-4">
+                <a href="#home" class="mobile-nav-link text-gray-300 hover:text-white font-medium py-2 border-b border-white/5">Home</a>
+                <a href="#about" class="mobile-nav-link text-gray-300 hover:text-white font-medium py-2 border-b border-white/5">Tentang</a>
+                <a href="#repositories" class="mobile-nav-link text-gray-300 hover:text-white font-medium py-2 border-b border-white/5">Repository</a>
+                <a href="#stats" class="mobile-nav-link text-gray-300 hover:text-white font-medium py-2 border-b border-white/5">Statistik</a>
+                <a href="#contact" class="mobile-nav-link text-gray-300 hover:text-white font-medium py-2">Kontak</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Parallax Hero Section -->
+    <section id="home" class="relative h-screen w-full overflow-hidden flex items-center justify-center bg-gradient-to-b from-[#030712] to-brand-dark">
+        <!-- Parallax Background Elements -->
+        <div class="absolute inset-0 pointer-events-none z-0">
+            <!-- Stars/Dots Layer -->
+            <div class="absolute inset-0 bg-[radial-gradient(#ffffff10_1px,transparent_1px)] [background-size:16px_16px] opacity-70" id="parallax-stars"></div>
+            
+            <!-- Glowing Orbs -->
+            <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[120px] animate-pulse" id="parallax-orb-1"></div>
+            <div class="absolute bottom-1/4 right-1/4 w-[450px] h-[450px] bg-purple-600/15 rounded-full blur-[150px]" id="parallax-orb-2"></div>
+            <div class="absolute top-1/2 right-1/3 w-80 h-80 bg-teal-500/10 rounded-full blur-[100px]" id="parallax-orb-3"></div>
+            
+            <!-- Floating Code Elements -->
+            <div class="absolute top-1/3 left-10 md:left-20 text-blue-500/20 font-mono text-sm md:text-base select-none hidden sm:block transform -rotate-12" id="parallax-code-1">
+                &lt;div class="parallax-container"&gt;<br>
+                &nbsp;&nbsp;const developer = "Alfa";<br>
+                &lt;/div&gt;
+            </div>
+            <div class="absolute bottom-1/3 right-10 md:right-20 text-purple-500/20 font-mono text-sm md:text-base select-none hidden sm:block transform rotate-6" id="parallax-code-2">
+                function buildFuture() {<br>
+                &nbsp;&nbsp;return code.map(idea => deploy(idea));<br>
+                }
+            </div>
+        </div>
+
+        <!-- Hero Content -->
+        <div class="relative z-10 text-center px-6 max-w-4xl mx-auto transform translate-y-0 transition-transform duration-300" id="hero-content">
+            <div class="inline-flex items-center space-x-2 bg-blue-500/10 border border-blue-500/30 px-4 py-1.5 rounded-full mb-6 backdrop-blur-sm">
+                <span class="w-2 h-2 bg-blue-400 rounded-full animate-ping"></span>
+                <span class="text-xs md:text-sm font-semibold tracking-wider text-blue-300 uppercase">Available for Projects</span>
+            </div>
+            
+            <h1 class="font-display text-5xl md:text-8xl font-extrabold tracking-tight mb-6 leading-none">
+                Hi, I'm <span class="bg-gradient-to-r from-blue-400 via-teal-300 to-purple-500 bg-clip-text text-transparent">Alfa</span>
+            </h1>
+            
+            <p class="text-lg md:text-2xl text-gray-400 max-w-2xl mx-auto mb-10 font-light leading-relaxed">
+                Seorang <span class="text-white font-medium">Software Engineer</span> & <span class="text-white font-medium">Automation Specialist</span> yang berfokus pada Web Scraping, AI Agent, dan Solusi Digital Kreatif.
+            </p>
+            
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="#repositories" class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-teal-500/20 transition-all duration-300 transform hover:-translate-y-1 flex items-center justify-center gap-2">
+                    <i class="fas fa-folder-open"></i> Lihat Repository
+                </a>
+                <a href="#contact" class="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-xl border border-white/10 hover:border-white/20 transition-all duration-300 flex items-center justify-center gap-2">
+                    Hubungi Saya <i class="fas fa-arrow-right text-sm"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Scroll Indicator -->
+        <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 flex flex-col items-center gap-2">
+            <span class="text-xs tracking-widest text-gray-500 uppercase font-semibold">Scroll Down</span>
+            <div class="w-6 h-10 border-2 border-gray-600 rounded-full flex justify-center p-1">
+                <div class="w-1.5 h-3 bg-blue-400 rounded-full animate-bounce"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="relative py-24 md:py-32 px-6 md:px-12 bg-brand-dark border-t border-white/5">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                <!-- Left Column: Image/Visual -->
+                <div class="lg:col-span-5 relative flex justify-center">
+                    <div class="relative w-72 h-72 md:w-96 md:h-96 group">
+                        <!-- Decorative Background Rings -->
+                        <div class="absolute inset-0 bg-gradient-to-tr from-blue-500 to-purple-600 rounded-3xl rotate-6 opacity-20 blur-lg group-hover:rotate-12 transition-transform duration-500"></div>
+                        <div class="absolute inset-0 bg-gradient-to-bl from-teal-400 to-blue-600 rounded-3xl -rotate-3 opacity-20 blur-lg group-hover:-rotate-6 transition-transform duration-500"></div>
+                        
+                        <!-- Main Card -->
+                        <div class="absolute inset-0 bg-brand-card border border-white/10 rounded-3xl overflow-hidden flex flex-col items-center justify-center p-8 shadow-2xl">
+                            <div class="relative mb-6">
+                                <div class="absolute inset-0 bg-gradient-to-tr from-blue-500 to-teal-400 rounded-full blur-md opacity-50 animate-pulse"></div>
+                                <img src="https://avatars.githubusercontent.com/u/247300653?v=4" alt="Alfa Avatar" class="relative w-32 h-32 rounded-full border-4 border-white/10 object-cover shadow-xl">
+                            </div>
+                            <h3 class="font-display text-2xl font-bold text-white mb-1">Alfa</h3>
+                            <p class="text-blue-400 text-sm font-medium mb-4">@fahmialfatah99-cmd</p>
+                            <div class="flex space-x-3">
+                                <span class="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs text-gray-300">Python</span>
+                                <span class="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs text-gray-300">TypeScript</span>
+                                <span class="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs text-gray-300">Scraping</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Text -->
+                <div class="lg:col-span-7 space-y-6">
+                    <div class="inline-flex items-center space-x-2 bg-teal-500/10 border border-teal-500/30 px-4 py-1.5 rounded-full">
+                        <i class="fas fa-user text-teal-400 text-xs"></i>
+                        <span class="text-xs font-semibold tracking-wider text-teal-300 uppercase">Tentang Saya</span>
+                    </div>
+                    <h2 class="font-display text-3xl md:text-5xl font-bold text-white leading-tight">
+                        Membangun Solusi Otomatisasi & Web Modern
+                    </h2>
+                    <p class="text-gray-400 leading-relaxed text-lg">
+                        Saya adalah pengembang yang bersemangat dalam memecahkan masalah melalui kode. Dengan keahlian khusus dalam web scraping, otomatisasi data, dan pengembangan AI Agent, saya membantu mengubah data mentah menjadi wawasan berharga dan mengotomatiskan alur kerja yang rumit.
+                    </p>
+                    <p class="text-gray-400 leading-relaxed text-lg">
+                        Saya suka mengeksplorasi teknologi baru dan membangun alat bantu yang mempermudah pekerjaan orang lain, seperti yang terlihat pada berbagai repository open-source saya mulai dari PDF Tools hingga Web Scraper canggih.
+                    </p>
+                    
+                    <!-- Skills Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4">
+                        <div class="flex items-center space-x-3 bg-white/5 border border-white/5 p-3.5 rounded-xl hover:border-blue-500/30 transition-colors">
+                            <i class="fab fa-python text-blue-400 text-2xl"></i>
+                            <span class="font-medium text-sm text-gray-200">Python</span>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-white/5 border border-white/5 p-3.5 rounded-xl hover:border-teal-400/30 transition-colors">
+                            <i class="fab fa-js text-yellow-400 text-2xl"></i>
+                            <span class="font-medium text-sm text-gray-200">JavaScript</span>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-white/5 border border-white/5 p-3.5 rounded-xl hover:border-blue-400/30 transition-colors">
+                            <i class="fab fa-react text-blue-400 text-2xl"></i>
+                            <span class="font-medium text-sm text-gray-200">TypeScript</span>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-white/5 border border-white/5 p-3.5 rounded-xl hover:border-purple-500/30 transition-colors">
+                            <i class="fas fa-robot text-purple-400 text-2xl"></i>
+                            <span class="font-medium text-sm text-gray-200">AI Agents</span>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-white/5 border border-white/5 p-3.5 rounded-xl hover:border-teal-500/30 transition-colors">
+                            <i class="fas fa-spider text-teal-400 text-2xl"></i>
+                            <span class="font-medium text-sm text-gray-200">Web Scraping</span>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-white/5 border border-white/5 p-3.5 rounded-xl hover:border-red-500/30 transition-colors">
+                            <i class="fas fa-database text-red-400 text-2xl"></i>
+                            <span class="font-medium text-sm text-gray-200">Automation</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Repositories Section -->
+    <section id="repositories" class="relative py-24 md:py-32 px-6 md:px-12 bg-gradient-to-b from-brand-dark via-[#0d1527] to-brand-dark">
+        <!-- Background Glow -->
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[150px] pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto relative z-10">
+            <!-- Section Header -->
+            <div class="text-center max-w-3xl mx-auto mb-16 space-y-4">
+                <div class="inline-flex items-center space-x-2 bg-blue-500/10 border border-blue-500/30 px-4 py-1.5 rounded-full">
+                    <i class="fas fa-code text-blue-400 text-xs"></i>
+                    <span class="text-xs font-semibold tracking-wider text-blue-300 uppercase">Showcase Karya</span>
+                </div>
+                <h2 class="font-display text-3xl md:text-5xl font-bold text-white">
+                    Semua Repository GitHub
+                </h2>
+                <p class="text-gray-400 text-lg">
+                    Koleksi proyek open-source, tools otomatisasi, scraping, dan eksperimen kode yang saya kembangkan.
+                </p>
+            </div>
+
+            <!-- Filter & Search Controls -->
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-10 bg-brand-card/50 border border-white/10 p-4 rounded-2xl backdrop-blur-md">
+                <!-- Search Input -->
+                <div class="relative w-full md:w-80">
+                    <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="search-repo" placeholder="Cari repository..." class="w-full bg-brand-dark/80 border border-white/10 rounded-xl py-2.5 pl-11 pr-4 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors">
+                </div>
+                
+                <!-- Language Filters -->
+                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end" id="language-filters">
+                    <button class="filter-btn active px-4 py-2 rounded-xl text-xs font-semibold tracking-wider uppercase transition-all duration-300" data-lang="all">
+                        All
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-xl text-xs font-semibold tracking-wider uppercase transition-all duration-300" data-lang="python">
+                        Python
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-xl text-xs font-semibold tracking-wider uppercase transition-all duration-300" data-lang="javascript">
+                        JavaScript
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-xl text-xs font-semibold tracking-wider uppercase transition-all duration-300" data-lang="typescript">
+                        TypeScript
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-xl text-xs font-semibold tracking-wider uppercase transition-all duration-300" data-lang="html">
+                        HTML/CSS
+                    </button>
+                </div>
+            </div>
+
+            <!-- Repositories Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="repos-grid">
+                <!-- Repository Cards will be dynamically generated here -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="hidden text-center py-20">
+                <i class="fas fa-folder-open text-5xl text-gray-600 mb-4"></i>
+                <p class="text-gray-400 text-lg">Tidak ada repository yang cocok dengan pencarian Anda.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- GitHub Stats Section -->
+    <section id="stats" class="relative py-24 md:py-32 px-6 md:px-12 bg-brand-dark border-t border-white/5">
+        <div class="max-w-7xl mx-auto">
+            <!-- Section Header -->
+            <div class="text-center max-w-3xl mx-auto mb-16 space-y-4">
+                <div class="inline-flex items-center space-x-2 bg-purple-500/10 border border-purple-500/30 px-4 py-1.5 rounded-full">
+                    <i class="fas fa-chart-bar text-purple-400 text-xs"></i>
+                    <span class="text-xs font-semibold tracking-wider text-purple-300 uppercase">Aktivitas & Statistik</span>
+                </div>
+                <h2 class="font-display text-3xl md:text-5xl font-bold text-white">
+                    Statistik GitHub Saya
+                </h2>
+                <p class="text-gray-400 text-lg">
+                    Ringkasan kontribusi, bahasa pemrograman yang sering digunakan, dan performa repository.
+                </p>
+            </div>
+
+            <!-- Stats Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+                <!-- Card 1: Total Repos -->
+                <div class="bg-brand-card border border-white/10 p-8 rounded-2xl relative overflow-hidden group hover:border-blue-500/30 transition-all duration-300">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-colors"></div>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400">
+                            <i class="fas fa-code-branch text-xl"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-blue-400 tracking-wider uppercase">Total Projects</span>
+                    </div>
+                    <h3 class="text-5xl font-extrabold text-white mb-2 font-display" id="stat-total-repos">15</h3>
+                    <p class="text-gray-400 text-sm">Repository publik aktif di GitHub</p>
+                </div>
+
+                <!-- Card 2: Primary Language -->
+                <div class="bg-brand-card border border-white/10 p-8 rounded-2xl relative overflow-hidden group hover:border-teal-400/30 transition-all duration-300">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl group-hover:bg-teal-500/10 transition-colors"></div>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="w-12 h-12 bg-teal-500/10 rounded-xl flex items-center justify-center text-teal-400">
+                            <i class="fab fa-python text-xl"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-teal-400 tracking-wider uppercase">Top Language</span>
+                    </div>
+                    <h3 class="text-5xl font-extrabold text-white mb-2 font-display">Python</h3>
+                    <p class="text-gray-400 text-sm">Bahasa utama untuk otomatisasi & scraping</p>
+                </div>
+
+                <!-- Card 3: Stars & Watchers -->
+                <div class="bg-brand-card border border-white/10 p-8 rounded-2xl relative overflow-hidden group hover:border-purple-500/30 transition-all duration-300">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/10 transition-colors"></div>
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-400">
+                            <i class="fas fa-star text-xl"></i>
+                        </div>
+                        <span class="text-xs font-semibold text-purple-400 tracking-wider uppercase">Community</span>
+                    </div>
+                    <h3 class="text-5xl font-extrabold text-white mb-2 font-display" id="stat-stars">2</h3>
+                    <p class="text-gray-400 text-sm">Total bintang & apresiasi dari komunitas</p>
+                </div>
+            </div>
+
+            <!-- GitHub Cards Integration -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- GitHub Stats Card -->
+                <div class="bg-brand-card/50 border border-white/10 p-6 rounded-2xl backdrop-blur-md flex justify-center items-center">
+                    <img src="https://github-readme-stats.vercel.app/api?username=fahmialfatah99-cmd&show_icons=true&theme=tokyonight&hide_border=true&bg_color=161F30&title_color=3B82F6&icon_color=14B8A6&text_color=9CA3AF" alt="GitHub Stats" class="w-full max-w-md rounded-xl">
+                </div>
+                <!-- GitHub Top Languages Card -->
+                <div class="bg-brand-card/50 border border-white/10 p-6 rounded-2xl backdrop-blur-md flex justify-center items-center">
+                    <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=fahmialfatah99-cmd&layout=compact&theme=tokyonight&hide_border=true&bg_color=161F30&title_color=3B82F6&icon_color=14B8A6&text_color=9CA3AF" alt="Top Languages" class="w-full max-w-md rounded-xl">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="relative py-24 md:py-32 px-6 md:px-12 bg-gradient-to-b from-brand-dark to-[#030712]">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                <!-- Left Column: Info -->
+                <div class="lg:col-span-5 space-y-8">
+                    <div class="space-y-4">
+                        <div class="inline-flex items-center space-x-2 bg-blue-500/10 border border-blue-500/30 px-4 py-1.5 rounded-full">
+                            <i class="fas fa-paper-plane text-blue-400 text-xs"></i>
+                            <span class="text-xs font-semibold tracking-wider text-blue-300 uppercase">Hubungi Saya</span>
+                        </div>
+                        <h2 class="font-display text-3xl md:text-5xl font-bold text-white">
+                            Mari Berkolaborasi!
+                        </h2>
+                        <p class="text-gray-400 text-lg leading-relaxed">
+                            Punya ide proyek otomatisasi, scraping data, atau butuh bantuan pengembangan web? Jangan ragu untuk menghubungi saya. Saya selalu terbuka untuk diskusi dan kolaborasi baru.
+                        </p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center space-x-4 bg-white/5 border border-white/5 p-4 rounded-xl hover:border-blue-500/20 transition-colors">
+                            <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400">
+                                <i class="fas fa-envelope text-lg"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider">Email</p>
+                                <a href="mailto:fahmialfatah99@gmail.com" class="text-white hover:text-blue-400 transition-colors font-medium">fahmialfatah99@gmail.com</a>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-4 bg-white/5 border border-white/5 p-4 rounded-xl hover:border-teal-400/20 transition-colors">
+                            <div class="w-12 h-12 bg-teal-500/10 rounded-xl flex items-center justify-center text-teal-400">
+                                <i class="fab fa-github text-lg"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider">GitHub</p>
+                                <a href="https://github.com/fahmialfatah99-cmd" target="_blank" rel="noopener noreferrer" class="text-white hover:text-teal-400 transition-colors font-medium">github.com/fahmialfatah99-cmd</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Form -->
+                <div class="lg:col-span-7">
+                    <form id="contact-form" class="bg-brand-card border border-white/10 p-8 rounded-3xl shadow-2xl space-y-6 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl"></div>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div class="space-y-2">
+                                <label for="name" class="text-sm font-semibold text-gray-300">Nama Lengkap</label>
+                                <input type="text" id="name" required class="w-full bg-brand-dark border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors">
+                            </div>
+                            <div class="space-y-2">
+                                <label for="email" class="text-sm font-semibold text-gray-300">Alamat Email</label>
+                                <input type="email" id="email" required class="w-full bg-brand-dark border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors">
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label for="subject" class="text-sm font-semibold text-gray-300">Subjek</label>
+                            <input type="text" id="subject" required class="w-full bg-brand-dark border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors">
+                        </div>
+
+                        <div class="space-y-2">
+                            <label for="message" class="text-sm font-semibold text-gray-300">Pesan</label>
+                            <textarea id="message" rows="5" required class="w-full bg-brand-dark border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors resize-none"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full py-4 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-teal-500/15 transition-all duration-300 transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                            Kirim Pesan <i class="fas fa-paper-plane text-sm"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-[#030712] border-t border-white/5 py-12 px-6 md:px-12 text-center text-gray-500 text-sm">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+            <p>&copy; 2026 Alfa. All rights reserved.</p>
+            <div class="flex space-x-6">
+                <a href="https://github.com/fahmialfatah99-cmd" target="_blank" rel="noopener noreferrer" class="hover:text-white transition-colors">GitHub</a>
+                <a href="mailto:fahmialfatah99@gmail.com" class="hover:text-white transition-colors">Email</a>
+            </div>
+            <p class="flex items-center gap-1 justify-center">
+                Made with <i class="fas fa-heart text-red-500 animate-pulse"></i> & Parallax Magic
+            </p>
+        </div>
+    </footer>
+
+    <!-- Custom JS -->
+    <script src="script.js"></script>
+</body>
+</html>
