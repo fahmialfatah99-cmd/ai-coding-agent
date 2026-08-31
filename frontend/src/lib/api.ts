@@ -25,14 +25,28 @@ export interface AgentSSEEvent {
   diff?: string;
 }
 
-export async function fetchModels(): Promise<ModelProvider[]> {
+export async function fetchModels(apiKey?: string): Promise<ModelProvider[]> {
   try {
-    const res = await fetch(`${API_BASE}/models`);
+    const url = apiKey ? `${API_BASE}/models?api_key=${encodeURIComponent(apiKey)}` : `${API_BASE}/models`;
+    const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
     return data.providers || [];
   } catch (err) {
     console.error("Failed to fetch models", err);
+    return [];
+  }
+}
+
+export async function sync9RouterModels(apiKey?: string): Promise<string[]> {
+  try {
+    const url = apiKey ? `${API_BASE}/models/sync-9router?api_key=${encodeURIComponent(apiKey)}` : `${API_BASE}/models/sync-9router`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.models || [];
+  } catch (err) {
+    console.error("Failed to sync 9router models", err);
     return [];
   }
 }

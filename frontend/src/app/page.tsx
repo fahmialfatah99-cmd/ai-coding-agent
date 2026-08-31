@@ -41,15 +41,22 @@ export default function Home() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
 
+  const refreshModelsList = async (keyToUse?: string) => {
+    const modelList = await fetchModels(keyToUse || apiKey);
+    if (modelList.length > 0) {
+      setProviders(modelList);
+      const activeP = modelList.find((p) => p.id === selectedProvider) || modelList[0];
+      setSelectedProvider(activeP.id);
+      if (activeP.models.length > 0 && !activeP.models.includes(selectedModel)) {
+        setSelectedModel(activeP.models[0]);
+      }
+    }
+  };
+
   // Load Models and File Tree on mount
   useEffect(() => {
     async function init() {
-      const modelList = await fetchModels();
-      if (modelList.length > 0) {
-        setProviders(modelList);
-        setSelectedProvider(modelList[0].id);
-        setSelectedModel(modelList[0].default_model);
-      }
+      await refreshModelsList(apiKey);
       await refreshFiles();
     }
     init();
@@ -340,11 +347,15 @@ export default function Home() {
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
             apiKey={apiKey}
-            onApiKeyChange={setApiKey}
+            onApiKeyChange={(key) => {
+              setApiKey(key);
+              refreshModelsList(key);
+            }}
             messages={messages}
             isStreaming={isStreaming}
             onSendMessage={handleSendMessage}
             onReviewDiff={handleReviewDiff}
+            onRefreshModels={() => refreshModelsList(apiKey)}
           />
         </aside>
       </div>

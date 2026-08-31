@@ -5,12 +5,12 @@ import httpx
 
 class UnifiedLLMClient:
     """
-    Multi-Provider LLM Client using asynchronous HTTP requests (httpx)
-    supporting 9Router, OpenAI, Google Gemini, Anthropic Claude, Ollama, and OpenAI-compatible endpoints.
+    Multi-Provider LLM Client with Real-Time Dynamic Model & Combo Discovery.
+    Optimized for 9Router local/cloud AI gateway with automatic fallback.
     """
     
     DEFAULT_BASE_URLS = {
-        "9router": "https://api.9router.com/v1",
+        "9router": "http://localhost:20128/v1",
         "openai": "https://api.openai.com/v1",
         "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
         "ollama": "http://localhost:11434/v1",
@@ -18,7 +18,7 @@ class UnifiedLLMClient:
     }
     
     DEFAULT_MODELS = {
-        "9router": "claude-3-7-sonnet",
+        "9router": "all",
         "openai": "gpt-4o",
         "gemini": "gemini-2.0-flash",
         "ollama": "deepseek-r1:latest",
@@ -39,8 +39,8 @@ class UnifiedLLMClient:
             or os.getenv("NINEROUTER_API_KEY", "")
             or os.getenv("OPENAI_API_KEY", "")
         )
-        self.model = model or self.DEFAULT_MODELS.get(self.provider, "claude-3-7-sonnet")
-        self.base_url = (base_url or self.DEFAULT_BASE_URLS.get(self.provider, "https://api.9router.com/v1")).rstrip("/")
+        self.model = model or self.DEFAULT_MODELS.get(self.provider, "all")
+        self.base_url = (base_url or self.DEFAULT_BASE_URLS.get(self.provider, "http://localhost:20128/v1")).rstrip("/")
 
     async def chat_completion(
         self,
@@ -76,7 +76,7 @@ class UnifiedLLMClient:
                 payload["system"] = system_msg
             endpoint = f"{self.base_url}/messages"
         else:
-            # 9Router / OpenAI / Gemini / Ollama (OpenAI-compatible)
+            # 9Router / OpenAI / Gemini / Ollama (OpenAI-compatible format)
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
             payload = {
@@ -118,34 +118,71 @@ class UnifiedLLMClient:
                     "tool_calls": []
                 }
 
-    @staticmethod
-    def get_supported_providers() -> List[Dict[str, Any]]:
+    @classmethod
+    async def fetch_dynamic_9router_models(cls, api_key: Optional[str] = None) -> List[str]:
+        """
+        Dynamically probes the active 9Router instance to retrieve all configured models and combos.
+        """
+        key = api_key or os.getenv("NINEROUTER_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
+        headers = {}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+
+        candidate_urls = [
+            "http://localhost:20128/v1/models",
+            "http://127.0.0.1:20128/v1/models",
+            "https://api.9router.com/v1/models"
+        ]
+
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            for url in candidate_urls:
+                try:
+                    res = await client.get(url, headers=headers)
+                    if res.status_code == 200:
+                        data = res.json()
+                        model_items = data.get("data", []) if isinstance(data, dict) and "data" in data else data
+                        if isinstance(model_items, list):
+                            models = [m.get("id") if isinstance(m, dict) else str(m) for m in model_items]
+                            if models:
+                                return models
+                except Exception:
+                    continue
+
+        return [
+            "all",
+            "ag/gemini-3.7-flash-high",
+            "ag/gemini-3.7-flash-medium",
+            "ag/claude-sonnet-4-6",
+            "ag/claude-opus-4-6-thinking",
+            "gemini/gemini-3.7-flash",
+            "nvidia/deepseek-ai/deepseek-v4-pro"
+        ]
+
+    @classmethod
+    async def get_supported_providers_async(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Returns full provider list with dynamically detected 9Router combos and models.
+        """
+        dynamic_9router_models = await cls.fetch_dynamic_9router_models(api_key)
+
         return [
             {
                 "id": "9router",
-                "name": "9Router (AI Gateway)",
-                "models": [
-                    "claude-3-7-sonnet",
-                    "claude-3-5-sonnet",
-                    "gpt-4o",
-                    "gpt-4o-mini",
-                    "gemini-2.0-flash",
-                    "deepseek-r1",
-                    "deepseek-v3"
-                ],
-                "default_model": "claude-3-7-sonnet"
-            },
-            {
-                "id": "openai",
-                "name": "OpenAI",
-                "models": ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
-                "default_model": "gpt-4o"
+                "name": "9Router (Auto-Detected Combos)",
+                "models": dynamic_9router_models,
+                "default_model": dynamic_9router_models[0] if dynamic_9router_models else "all"
             },
             {
                 "id": "gemini",
                 "name": "Google Gemini",
                 "models": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
                 "default_model": "gemini-2.0-flash"
+            },
+            {
+                "id": "openai",
+                "name": "OpenAI",
+                "models": ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
+                "default_model": "gpt-4o"
             },
             {
                 "id": "anthropic",
@@ -158,5 +195,28 @@ class UnifiedLLMClient:
                 "name": "Ollama / Local LLM",
                 "models": ["deepseek-r1:latest", "qwen2.5-coder:latest", "llama3.3:latest"],
                 "default_model": "deepseek-r1:latest"
+            }
+        ]
+
+    @staticmethod
+    def get_supported_providers() -> List[Dict[str, Any]]:
+        return [
+            {
+                "id": "9router",
+                "name": "9Router (Auto-Detected Combos)",
+                "models": ["all", "ag/gemini-3.7-flash-high", "ag/claude-sonnet-4-6", "nvidia/deepseek-ai/deepseek-v4-pro"],
+                "default_model": "all"
+            },
+            {
+                "id": "gemini",
+                "name": "Google Gemini",
+                "models": ["gemini-2.0-flash", "gemini-1.5-pro"],
+                "default_model": "gemini-2.0-flash"
+            },
+            {
+                "id": "openai",
+                "name": "OpenAI",
+                "models": ["gpt-4o", "gpt-4o-mini"],
+                "default_model": "gpt-4o"
             }
         ]

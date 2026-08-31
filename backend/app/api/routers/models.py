@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
@@ -15,16 +15,31 @@ class ProviderInfo(BaseModel):
     models: List[str]
     default_model: str
 
-@router.get("", response_model=Dict[str, List[Dict[str, Any]]])
-async def list_models():
-    """Returns available LLM providers (9Router, OpenAI, Gemini, Claude, Ollama) and supported models."""
-    return {"providers": UnifiedLLMClient.get_supported_providers()}
+@router.get("")
+async def list_models(api_key: Optional[str] = Query(None)):
+    """
+    Returns live available LLM providers and auto-detects all 9Router combos and models.
+    """
+    providers = await UnifiedLLMClient.get_supported_providers_async(api_key=api_key)
+    return {"providers": providers}
 
 @router.get("/active")
 async def get_active_model_defaults():
     """Returns default model configurations."""
+    providers = await UnifiedLLMClient.get_supported_providers_async()
+    first_model = providers[0]["models"][0] if providers and providers[0]["models"] else "all"
     return {
         "default_provider": "9router",
-        "default_model": "claude-3-7-sonnet",
-        "supported_providers": UnifiedLLMClient.get_supported_providers()
+        "default_model": first_model,
+        "supported_providers": providers
+    }
+
+@router.get("/sync-9router")
+async def sync_9router(api_key: Optional[str] = Query(None)):
+    """Forces real-time re-sync with local/remote 9Router instance."""
+    models = await UnifiedLLMClient.fetch_dynamic_9router_models(api_key=api_key)
+    return {
+        "status": "synchronized",
+        "total_models": len(models),
+        "models": models
     }

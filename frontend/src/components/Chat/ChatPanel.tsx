@@ -15,6 +15,7 @@ import {
   Key,
   Cpu,
   StopCircle,
+  RefreshCw,
 } from "lucide-react";
 import { ModelProvider, AgentSSEEvent } from "@/lib/api";
 
@@ -49,6 +50,7 @@ interface ChatPanelProps {
   onSendMessage: (prompt: string) => void;
   onStopStreaming?: () => void;
   onReviewDiff?: (filePath: string, diff: string) => void;
+  onRefreshModels?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -121,6 +123,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               </option>
             ))}
           </select>
+
+          {onRefreshModels && (
+            <button
+              onClick={onRefreshModels}
+              className="p-1.5 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded transition"
+              title="Auto-Detect & Sync 9Router Combos/Models"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           <button
             onClick={() => setShowSettings(!showSettings)}
