@@ -6,6 +6,7 @@ import {
 } from "@/components/filetree/FileTree";
 import { MonacoEditor } from "@/components/editor/MonacoEditor";
 import { MonacoInlineDiff } from "@/components/editor/MonacoInlineDiff";
+import { WebPreview } from "@/components/preview/WebPreview";
 import { ChatPanel, ChatMessage } from "@/components/chat/ChatPanel";
 import { TerminalPanel, TerminalLog } from "@/components/terminal/TerminalPanel";
 import {
@@ -19,7 +20,7 @@ import {
   ModelProvider,
   AgentSSEEvent,
 } from "@/lib/api";
-import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check } from "lucide-react";
+import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns } from "lucide-react";
 
 export default function Home() {
   const [workspacePath, setWorkspacePath] = useState("./workspace");
@@ -28,6 +29,7 @@ export default function Home() {
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
   const [activeCode, setActiveCode] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"editor" | "preview" | "split">("editor");
   const [originalDiffCode, setOriginalDiffCode] = useState<string | null>(null);
   const [modifiedDiffCode, setModifiedDiffCode] = useState<string | null>(null);
   const [diffFilePath, setDiffFilePath] = useState<string>("");
@@ -280,6 +282,10 @@ export default function Home() {
                 if (event.diff) {
                   setDiffFilePath(modifiedPath);
                 }
+                // If HTML or SVG, automatically enable split preview!
+                if (modifiedPath.endsWith(".html") || modifiedPath.endsWith(".htm") || modifiedPath.endsWith(".svg")) {
+                  setViewMode("split");
+                }
               })
               .catch(console.error);
           }
@@ -403,26 +409,97 @@ export default function Home() {
           />
         </aside>
 
-        {/* Center: Monaco Editor & Terminal */}
+        {/* Center: Monaco Editor, Live Web Preview, & Terminal */}
         <main className="flex-1 flex flex-col h-full overflow-hidden">
-          <div className="flex-1 overflow-hidden">
-            {originalDiffCode !== null && modifiedDiffCode !== null ? (
-              <MonacoInlineDiff
-                filePath={diffFilePath}
-                originalCode={originalDiffCode}
-                modifiedCode={modifiedDiffCode}
-                onAccept={handleAcceptDiff}
-                onReject={handleRejectDiff}
-              />
-            ) : (
-              <MonacoEditor
-                filePath={activeFile}
-                code={activeCode}
-                onChange={(val) => {
-                  setActiveCode(val);
-                }}
-                onSave={handleSaveFile}
-              />
+          {/* View Mode Switcher Bar */}
+          <div className="flex items-center justify-between px-3 py-1.5 bg-[#161616] border-b border-neutral-800 text-xs select-none">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[11px] text-neutral-400 truncate max-w-[200px]">
+                {activeFile ? activeFile : "Untitled"}
+              </span>
+              {activeFile && (activeFile.endsWith(".html") || activeFile.endsWith(".htm") || activeFile.endsWith(".svg")) && (
+                <span className="bg-emerald-950/80 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded border border-emerald-800/40">
+                  Live Web Preview
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 bg-neutral-900 p-0.5 rounded border border-neutral-800">
+              <button
+                onClick={() => setViewMode("editor")}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition ${
+                  viewMode === "editor"
+                    ? "bg-accent text-white shadow-sm"
+                    : "text-neutral-400 hover:text-neutral-200"
+                }`}
+                title="Code Editor View"
+              >
+                <Code2 className="w-3 h-3" />
+                <span>Code</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode("split")}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition ${
+                  viewMode === "split"
+                    ? "bg-accent text-white shadow-sm"
+                    : "text-neutral-400 hover:text-neutral-200"
+                }`}
+                title="Split View: Editor & Live Web Preview"
+              >
+                <Columns className="w-3 h-3" />
+                <span>Split</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode("preview")}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition ${
+                  viewMode === "preview"
+                    ? "bg-accent text-white shadow-sm"
+                    : "text-neutral-400 hover:text-neutral-200"
+                }`}
+                title="Full Live Web Preview"
+              >
+                <Eye className="w-3 h-3" />
+                <span>Preview</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left/Main: Editor */}
+            {(viewMode === "editor" || viewMode === "split") && (
+              <div className={`${viewMode === "split" ? "w-1/2 border-r border-neutral-800" : "w-full"} h-full overflow-hidden`}>
+                {originalDiffCode !== null && modifiedDiffCode !== null ? (
+                  <MonacoInlineDiff
+                    filePath={diffFilePath}
+                    originalCode={originalDiffCode}
+                    modifiedCode={modifiedDiffCode}
+                    onAccept={handleAcceptDiff}
+                    onReject={handleRejectDiff}
+                  />
+                ) : (
+                  <MonacoEditor
+                    filePath={activeFile}
+                    code={activeCode}
+                    onChange={(val) => {
+                      setActiveCode(val);
+                    }}
+                    onSave={handleSaveFile}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Right/Main: Live Web Preview */}
+            {(viewMode === "preview" || viewMode === "split") && (
+              <div className={`${viewMode === "split" ? "w-1/2" : "w-full"} h-full overflow-hidden`}>
+                <WebPreview
+                  code={activeCode}
+                  filePath={activeFile || "index.html"}
+                  onRefresh={refreshFiles}
+                />
+              </div>
             )}
           </div>
 
