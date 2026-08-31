@@ -20,7 +20,7 @@ class UnifiedLLMClient:
     }
     
     DEFAULT_MODELS = {
-        "9router": "all",
+        "9router": "ag/gemini-3.7-flash-high",
         "openai": "gpt-4o",
         "gemini": "gemini-2.0-flash",
         "ollama": "deepseek-r1:latest",
@@ -41,7 +41,7 @@ class UnifiedLLMClient:
             or os.getenv("NINEROUTER_API_KEY", "")
             or os.getenv("OPENAI_API_KEY", "")
         )
-        self.model = model or self.DEFAULT_MODELS.get(self.provider, "all")
+        self.model = model or self.DEFAULT_MODELS.get(self.provider, "ag/gemini-3.7-flash-high")
         self.base_url = (base_url or self.DEFAULT_BASE_URLS.get(self.provider, "http://localhost:20128/v1")).rstrip("/")
 
     async def chat_completion(
@@ -51,7 +51,7 @@ class UnifiedLLMClient:
         temperature: float = 0.2
     ) -> Dict[str, Any]:
         """
-        Executes chat completion request with 3x Exponential Backoff Retry on network/timeout/rate-limit issues.
+        Executes chat completion request with multi-model failover and automatic retry.
         """
         if not self.api_key and self.provider != "ollama":
             return {
@@ -65,77 +65,88 @@ class UnifiedLLMClient:
             "Content-Type": "application/json"
         }
 
-        if self.provider == "anthropic":
-            headers["x-api-key"] = self.api_key
-            headers["anthropic-version"] = "2023-06-01"
-            payload = {
-                "model": self.model,
-                "messages": [m for m in messages if m.get("role") != "system"],
-                "temperature": temperature,
-                "max_tokens": 4096
-            }
-            system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
-            if system_msg:
-                payload["system"] = system_msg
-            endpoint = f"{self.base_url}/messages"
-        else:
-            # 9Router / OpenAI / Gemini / Ollama (OpenAI-compatible format)
-            if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": temperature
-            }
-            if tools:
-                payload["tools"] = tools
-                payload["tool_choice"] = "auto"
-            endpoint = f"{self.base_url}/chat/completions"
+        candidate_models = [self.model]
+        if self.provider == "9router":
+            if self.model == "all":
+                candidate_models = ["ag/gemini-3.7-flash-high", "ag/claude-sonnet-4-6", "all"]
+            else:
+                if "ag/gemini-3.7-flash-high" not in candidate_models:
+                    candidate_models.append("ag/gemini-3.7-flash-high")
+                if "ag/claude-sonnet-4-6" not in candidate_models:
+                    candidate_models.append("ag/claude-sonnet-4-6")
 
-        max_retries = 3
-        backoff_delays = [1.0, 2.5, 5.0]
         last_error = ""
 
-        for attempt in range(max_retries):
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(endpoint, headers=headers, json=payload)
-                    response.raise_for_status()
-                    
-                    content_type = response.headers.get("content-type", "")
-                    raw_text = response.text
+        for current_model in candidate_models:
+            if self.provider == "anthropic":
+                headers["x-api-key"] = self.api_key
+                headers["anthropic-version"] = "2023-06-01"
+                payload = {
+                    "model": current_model,
+                    "messages": [m for m in messages if m.get("role") != "system"],
+                    "temperature": temperature,
+                    "max_tokens": 4096
+                }
+                system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
+                if system_msg:
+                    payload["system"] = system_msg
+                endpoint = f"{self.base_url}/messages"
+            else:
+                if self.api_key:
+                    headers["Authorization"] = f"Bearer {self.api_key}"
+                payload = {
+                    "model": current_model,
+                    "messages": messages,
+                    "temperature": temperature
+                }
+                if tools:
+                    payload["tools"] = tools
+                    payload["tool_choice"] = "auto"
+                endpoint = f"{self.base_url}/chat/completions"
 
-                    # Check if the gateway returned an SSE event stream (e.g. 9Router default behavior)
-                    if "text/event-stream" in content_type or raw_text.strip().startswith("data:"):
-                        return self._parse_sse_stream_response(raw_text)
+            for attempt in range(2):
+                try:
+                    async with httpx.AsyncClient(timeout=25.0) as client:
+                        response = await client.post(endpoint, headers=headers, json=payload)
+                        response.raise_for_status()
+                        
+                        content_type = response.headers.get("content-type", "")
+                        raw_text = response.text
 
-                    if self.provider == "anthropic":
-                        data = response.json()
-                        content_blocks = data.get("content", [])
-                        text = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
-                        return {
-                            "role": "assistant",
-                            "content": text,
-                            "tool_calls": [],
-                            "reasoning": ""
-                        }
-                    else:
-                        data = response.json()
-                        choice = data.get("choices", [{}])[0]
-                        message = choice.get("message", {})
-                        return {
-                            "role": message.get("role", "assistant"),
-                            "content": message.get("content", ""),
-                            "tool_calls": message.get("tool_calls", []),
-                            "reasoning": message.get("reasoning_content", "")
-                        }
-            except Exception as e:
-                last_error = str(e)
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(backoff_delays[attempt])
+                        # Check if SSE event stream
+                        if "text/event-stream" in content_type or raw_text.strip().startswith("data:"):
+                            parsed = self._parse_sse_stream_response(raw_text)
+                            if parsed.get("content") or parsed.get("tool_calls"):
+                                return parsed
+
+                        if self.provider == "anthropic":
+                            data = response.json()
+                            content_blocks = data.get("content", [])
+                            text = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
+                            if text:
+                                return {
+                                    "role": "assistant",
+                                    "content": text,
+                                    "tool_calls": [],
+                                    "reasoning": ""
+                                }
+                        else:
+                            data = response.json()
+                            choice = data.get("choices", [{}])[0]
+                            message = choice.get("message", {})
+                            content = message.get("content", "")
+                            t_calls = message.get("tool_calls", [])
+                            if content or t_calls:
+                                return {
+                                    "role": message.get("role", "assistant"),
+                                    "content": content,
+                                    "tool_calls": t_calls,
+                                    "reasoning": message.get("reasoning_content", "")
+                                }
+                except Exception as e:
+                    last_error = f"{current_model} error: {e}"
+                    await asyncio.sleep(1.0)
                     continue
-                else:
-                    break
 
         return {
             "role": "assistant",

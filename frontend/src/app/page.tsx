@@ -44,7 +44,7 @@ export default function Home() {
   // LLM State with Persistence
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("9router");
-  const [selectedModel, setSelectedModel] = useState<string>("all");
+  const [selectedModel, setSelectedModel] = useState<string>("ag/gemini-3.7-flash-high");
   const [apiKey, setApiKey] = useState<string>("sk-6414cfe3f30d0a5c-tpa041-d36f53fa");
 
   // Chat & Terminal State with Persistence
@@ -67,7 +67,11 @@ export default function Home() {
     if (savedProvider) setSelectedProvider(savedProvider);
 
     const savedModel = localStorage.getItem("ai_agent_model");
-    if (savedModel) setSelectedModel(savedModel);
+    if (savedModel && savedModel !== "all") {
+      setSelectedModel(savedModel);
+    } else {
+      setSelectedModel("ag/gemini-3.7-flash-high");
+    }
 
     const savedMessages = localStorage.getItem("ai_agent_messages");
     if (savedMessages) {
