@@ -72,13 +72,16 @@ class UnifiedLLMClient:
 
         candidate_models = [self.model]
         if self.provider == "9router":
-            if self.model == "all":
-                candidate_models = ["ag/gemini-3.7-flash-high", "ag/claude-sonnet-4-6", "all"]
-            else:
-                if "ag/gemini-3.7-flash-high" not in candidate_models:
-                    candidate_models.append("ag/gemini-3.7-flash-high")
-                if "ag/claude-sonnet-4-6" not in candidate_models:
-                    candidate_models.append("ag/claude-sonnet-4-6")
+            reliable_9router_models = [
+                "ag/gemini-3.7-flash-high",
+                "ag/gemini-3.5-flash-high",
+                "ag/gemini-3.6-flash-high",
+                "ag/gemini-3-flash-agent",
+                "ag/gemini-3-flash"
+            ]
+            for rm in reliable_9router_models:
+                if rm not in candidate_models:
+                    candidate_models.append(rm)
 
         last_error = ""
 

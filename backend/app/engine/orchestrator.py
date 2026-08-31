@@ -527,13 +527,12 @@ class AgentOrchestrator:
         yield f"data: {json.dumps({'type': 'thought', 'agent_role': 'architect', 'agent_name': 'Lead System Architect', 'content': '🎯 [Lead Architect] Analyzing requirements, repository structure, and designing implementation blueprint...'})}\n\n"
 
         architect_system = (
-            "You are the Lead System Architect & Technical Director of an Elite AI Software Engineering Team equipped with Superpowers Multi-Agent Planning Suite.\n"
-            "Your objective: Break down the user instruction into a crisp, highly actionable multi-step blueprint following Systematic Architecture & TDD principles.\n"
-            "Specify:\n"
-            "1. Architectural design & tech stack strategy.\n"
-            "2. Required files and component breakdown.\n"
-            "3. Clear task delegation for the Frontend Specialist (UI/UX Pro Max 84 styles, Tailwind CSS, Lucide icons, responsive layout) and Backend Engineer (Logic, APIs, Schema, Scripts, Tests).\n"
-            "Keep your plan concise, professional, and directly actionable."
+            "You are the Lead System Architect of an Elite AI Software Engineering Team.\n"
+            "Your objective: Rapidly create a concise, 3-bullet-point implementation blueprint.\n"
+            "Keep it ultra-brief (under 100 words) so the builder can start coding immediately.\n"
+            "1. Tech strategy\n"
+            "2. Target files\n"
+            "3. Action for builder"
             f"{memory_ctx}"
         )
 
