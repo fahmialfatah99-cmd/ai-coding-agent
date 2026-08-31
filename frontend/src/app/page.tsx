@@ -22,7 +22,8 @@ import {
   ModelProvider,
   AgentSSEEvent,
 } from "@/lib/api";
-import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain, ChevronDown, FolderCheck, Sparkles } from "lucide-react";
+import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain, ChevronDown, FolderCheck, Sparkles, Github } from "lucide-react";
+import { GitHubModal } from "@/components/github/GitHubModal";
 
 export default function Home() {
   const [workspacePath, setWorkspacePath] = useState("./workspace");
@@ -35,6 +36,7 @@ export default function Home() {
   const [activeCode, setActiveCode] = useState<string>("");
   const [viewMode, setViewMode] = useState<"editor" | "preview" | "split">("editor");
   const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false);
+  const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
   const [originalDiffCode, setOriginalDiffCode] = useState<string | null>(null);
   const [modifiedDiffCode, setModifiedDiffCode] = useState<string | null>(null);
   const [diffFilePath, setDiffFilePath] = useState<string>("");
@@ -511,6 +513,15 @@ export default function Home() {
           )}
 
           <button
+            onClick={() => setIsGitHubModalOpen(true)}
+            className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white px-2.5 py-1 rounded border border-neutral-800 transition cursor-pointer text-xs select-none shadow-sm"
+            title="Configure GitHub Token & Push Credentials"
+          >
+            <Github className="w-3.5 h-3.5 text-neutral-200" />
+            <span className="font-medium text-[11px]">GitHub</span>
+          </button>
+
+          <button
             onClick={() => setIsSkillsModalOpen(true)}
             className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white px-2.5 py-1 rounded border border-neutral-800 transition cursor-pointer text-xs select-none shadow-sm"
             title="View Active Skills, Tools & Persistent Long-Term Memory"
@@ -704,6 +715,13 @@ export default function Home() {
       <SkillsModal
         isOpen={isSkillsModalOpen}
         onClose={() => setIsSkillsModalOpen(false)}
+        workspacePath={workspacePath}
+      />
+
+      {/* GitHub Integration Modal */}
+      <GitHubModal
+        isOpen={isGitHubModalOpen}
+        onClose={() => setIsGitHubModalOpen(false)}
         workspacePath={workspacePath}
       />
     </div>

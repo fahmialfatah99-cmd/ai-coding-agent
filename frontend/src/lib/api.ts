@@ -156,3 +156,46 @@ export async function streamAgentTask(
     }
   }
 }
+
+export interface GitHubConfigResponse {
+  status: string;
+  username: string;
+  name: string;
+  avatar_url: string;
+  email: string;
+  scopes: string;
+}
+
+export async function configureGitHub(params: {
+  token: string;
+  username?: string;
+  email?: string;
+  remote_url?: string;
+  workspace_path?: string;
+}): Promise<GitHubConfigResponse> {
+  const res = await fetch(`${API_BASE}/sandbox/github-config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to configure GitHub token");
+  }
+  return res.json();
+}
+
+export async function getGitHubStatus(): Promise<{
+  configured: boolean;
+  user_name: string;
+  user_email: string;
+  remote: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/sandbox/github-status`);
+    if (!res.ok) return { configured: false, user_name: "", user_email: "", remote: "" };
+    return res.json();
+  } catch {
+    return { configured: false, user_name: "", user_email: "", remote: "" };
+  }
+}
