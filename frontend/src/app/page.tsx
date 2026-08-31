@@ -501,7 +501,7 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1 max-h-56 overflow-y-auto">
-                  {availableWorkspaces.map((ws) => {
+                  {(availableWorkspaces || []).map((ws) => {
                     const isSelected = workspacePath === ws.path || workspacePath === ws.name;
                     return (
                       <button

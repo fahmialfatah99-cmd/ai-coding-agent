@@ -128,7 +128,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             onChange={(e) => onProviderChange(e.target.value)}
             className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-accent max-w-[110px]"
           >
-            {providers.map((p) => (
+            {(providers || []).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
@@ -140,7 +140,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             onChange={(e) => onModelChange(e.target.value)}
             className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-accent max-w-[130px]"
           >
-            {activeProviderObj?.models.map((m) => (
+            {(activeProviderObj?.models && activeProviderObj.models.length > 0
+              ? activeProviderObj.models
+              : [selectedModel || "ag/gemini-3.7-flash-high"]
+            ).map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
@@ -437,7 +440,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                       </div>
                     )}
                     {/* Thought Expander */}
-                    {msg.thoughts && msg.thoughts.length > 0 && (
+                    {msg.thoughts && Array.isArray(msg.thoughts) && msg.thoughts.length > 0 && (
                       <div className="bg-neutral-900/90 border border-neutral-800 rounded-md overflow-hidden text-xs">
                         <button
                           onClick={() => toggleThought(msg.id)}
@@ -455,7 +458,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         </button>
                         {expandedThoughts[msg.id] && (
                           <div className="p-2.5 space-y-1.5 border-t border-neutral-800/50 bg-[#121212] font-mono text-[11px] text-neutral-400">
-                            {msg.thoughts.map((t, idx) => (
+                            {(msg.thoughts || []).map((t, idx) => (
                               <div key={idx} className="flex gap-2">
                                 <span className="text-neutral-600 select-none">›</span>
                                 <span>{t}</span>
@@ -467,7 +470,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     )}
 
                     {/* Tool Calls */}
-                    {msg.toolCalls && msg.toolCalls.map((tc, idx) => (
+                    {msg.toolCalls && Array.isArray(msg.toolCalls) && (msg.toolCalls || []).map((tc, idx) => (
                       <div
                         key={idx}
                         className="bg-neutral-900 border border-neutral-800 rounded-md p-2 text-xs font-mono"
@@ -475,18 +478,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         <div className="flex items-center justify-between text-purple-300 font-semibold mb-1">
                           <span className="flex items-center gap-1.5">
                             <Terminal className="w-3 h-3 text-purple-400" />
-                            Tool: {tc.tool}
+                            Tool: {tc?.tool || "tool"}
                           </span>
                           <span className="text-[10px] text-neutral-500">Executed</span>
                         </div>
                         <div className="text-[11px] text-neutral-400 bg-black/40 p-1.5 rounded overflow-x-auto">
-                          {JSON.stringify(tc.args, null, 2)}
+                          {JSON.stringify(tc?.args || {}, null, 2)}
                         </div>
                       </div>
                     ))}
 
                     {/* File Modified Badge / Diff Review trigger */}
-                    {msg.modifiedFiles && msg.modifiedFiles.map((mf, idx) => (
+                    {msg.modifiedFiles && Array.isArray(msg.modifiedFiles) && (msg.modifiedFiles || []).map((mf, idx) => (
                       <div
                         key={idx}
                         onClick={() => onReviewDiff && onReviewDiff(mf.path, mf.diff)}
