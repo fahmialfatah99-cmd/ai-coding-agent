@@ -1,8 +1,16 @@
 import os
 import subprocess
+import glob
 
 try:
     subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"], capture_output=True)
+except Exception:
+    pass
+
+try:
+    nvm_nodes = glob.glob('/home/fahmial/.nvm/versions/node/*/bin') + glob.glob('/root/.nvm/versions/node/*/bin')
+    if nvm_nodes:
+        os.environ['PATH'] = ':'.join(nvm_nodes) + ':' + os.environ.get('PATH', '')
 except Exception:
     pass
 

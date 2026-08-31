@@ -111,6 +111,12 @@ class DockerSandboxManager:
                     timeout=timeout_sec
                 )
             else:
+                env = os.environ.copy()
+                import glob
+                nvm_nodes = glob.glob('/home/fahmial/.nvm/versions/node/*/bin') + glob.glob('/root/.nvm/versions/node/*/bin')
+                if nvm_nodes:
+                    env['PATH'] = ':'.join(nvm_nodes) + ':' + env.get('PATH', '')
+
                 res = subprocess.run(
                     cmd,
                     shell=True,
@@ -118,7 +124,8 @@ class DockerSandboxManager:
                     cwd=self.workspace_path,
                     capture_output=True,
                     text=True,
-                    timeout=timeout_sec
+                    timeout=timeout_sec,
+                    env=env
                 )
 
             return {
