@@ -30,16 +30,73 @@ export default function Home() {
   const [modifiedDiffCode, setModifiedDiffCode] = useState<string | null>(null);
   const [diffFilePath, setDiffFilePath] = useState<string>("");
 
-  // LLM State
+  // LLM State with Persistence
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("9router");
-  const [selectedModel, setSelectedModel] = useState<string>("claude-3-7-sonnet");
+  const [selectedModel, setSelectedModel] = useState<string>("all");
   const [apiKey, setApiKey] = useState<string>("sk-6414cfe3f30d0a5c-tpa041-d36f53fa");
 
-  // Chat & Terminal State
+  // Chat & Terminal State with Persistence
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
+
+  // 1. Initial LocalStorage Restore & Initialization
+  useEffect(() => {
+    // Restore Saved Settings
+    const savedKey = localStorage.getItem("ai_agent_api_key");
+    if (savedKey) setApiKey(savedKey);
+
+    const savedProvider = localStorage.getItem("ai_agent_provider");
+    if (savedProvider) setSelectedProvider(savedProvider);
+
+    const savedModel = localStorage.getItem("ai_agent_model");
+    if (savedModel) setSelectedModel(savedModel);
+
+    const savedMessages = localStorage.getItem("ai_agent_messages");
+    if (savedMessages) {
+      try {
+        setMessages(JSON.parse(savedMessages));
+      } catch (e) {
+        console.error("Failed to parse saved chat messages", e);
+      }
+    }
+
+    async function init() {
+      await refreshModelsList(savedKey || apiKey);
+      const tree = await refreshFiles();
+
+      // Restore last opened file
+      const savedActiveFile = localStorage.getItem("ai_agent_active_file");
+      if (savedActiveFile) {
+        handleSelectFile(savedActiveFile);
+      } else if (tree && tree.length > 0) {
+        // Auto-open first file if available
+        const firstFile = findFirstFile(tree);
+        if (firstFile) handleSelectFile(firstFile);
+      }
+    }
+    init();
+  }, [workspacePath]);
+
+  // Helper to find first code file in tree
+  const findFirstFile = (nodes: FileNode[]): string | null => {
+    for (const node of nodes) {
+      if (!node.is_dir) return node.path;
+      if (node.children && node.children.length > 0) {
+        const sub = findFirstFile(node.children);
+        if (sub) return sub;
+      }
+    }
+    return null;
+  };
+
+  // 2. Persist Messages whenever updated
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem("ai_agent_messages", JSON.stringify(messages.slice(-50)));
+    }
+  }, [messages]);
 
   const refreshModelsList = async (keyToUse?: string) => {
     const modelList = await fetchModels(keyToUse || apiKey);
@@ -53,18 +110,10 @@ export default function Home() {
     }
   };
 
-  // Load Models and File Tree on mount
-  useEffect(() => {
-    async function init() {
-      await refreshModelsList(apiKey);
-      await refreshFiles();
-    }
-    init();
-  }, [workspacePath]);
-
-  const refreshFiles = async () => {
+  const refreshFiles = async (): Promise<FileNode[]> => {
     const tree = await fetchFileTree(workspacePath);
     setFileTree(tree);
+    return tree;
   };
 
   const handleSelectFile = async (filePath: string) => {
@@ -72,8 +121,8 @@ export default function Home() {
       const content = await readFile(workspacePath, filePath);
       setActiveFile(filePath);
       setActiveCode(content);
-      // Exit diff view if we switch files
       setOriginalDiffCode(null);
+      localStorage.setItem("ai_agent_active_file", filePath);
     } catch (err) {
       console.error("Failed to open file", err);
     }
@@ -220,6 +269,7 @@ export default function Home() {
               .then((c) => {
                 setActiveFile(modifiedPath);
                 setActiveCode(c);
+                localStorage.setItem("ai_agent_active_file", modifiedPath);
                 if (event.diff) {
                   setDiffFilePath(modifiedPath);
                 }
@@ -258,6 +308,7 @@ export default function Home() {
       await writeFile(workspacePath, diffFilePath, newCode);
       setActiveCode(newCode);
       setActiveFile(diffFilePath);
+      localStorage.setItem("ai_agent_active_file", diffFilePath);
     }
     setOriginalDiffCode(null);
     setModifiedDiffCode(null);
@@ -288,7 +339,7 @@ export default function Home() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5 text-emerald-400">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span className="font-medium text-[11px]">Engine Connected</span>
+            <span className="font-medium text-[11px]">Engine Connected (Auto-Saved)</span>
           </div>
         </div>
       </header>
@@ -321,7 +372,9 @@ export default function Home() {
               <MonacoEditor
                 filePath={activeFile}
                 code={activeCode}
-                onChange={setActiveCode}
+                onChange={(val) => {
+                  setActiveCode(val);
+                }}
                 onSave={handleSaveFile}
               />
             )}
@@ -342,16 +395,22 @@ export default function Home() {
             selectedProvider={selectedProvider}
             onProviderChange={(p) => {
               setSelectedProvider(p);
+              localStorage.setItem("ai_agent_provider", p);
               const provObj = providers.find((item) => item.id === p);
               if (provObj && provObj.models.length > 0) {
                 setSelectedModel(provObj.models[0]);
+                localStorage.setItem("ai_agent_model", provObj.models[0]);
               }
             }}
             selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
+            onModelChange={(m) => {
+              setSelectedModel(m);
+              localStorage.setItem("ai_agent_model", m);
+            }}
             apiKey={apiKey}
             onApiKeyChange={(key) => {
               setApiKey(key);
+              localStorage.setItem("ai_agent_api_key", key);
               refreshModelsList(key);
             }}
             messages={messages}
