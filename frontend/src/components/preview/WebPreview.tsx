@@ -29,7 +29,7 @@ export const WebPreview: React.FC<WebPreviewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Generate complete HTML with proper head/body wrappers if code is a partial snippet
+  // Generate complete HTML with proper head/body wrappers and iframe compat
   const generateFullHtml = (rawCode: string): string => {
     if (!rawCode.trim()) {
       return `
@@ -58,26 +58,54 @@ export const WebPreview: React.FC<WebPreviewProps> = ({
       `;
     }
 
-    if (rawCode.toLowerCase().includes("<html") || rawCode.toLowerCase().includes("<!doctype")) {
-      return rawCode;
+    const iframeCompatScript = `
+      <script>
+        (function() {
+          function forceDismissLoaders() {
+            var loader = document.getElementById('loader') || document.querySelector('.preloader') || document.querySelector('#preloader');
+            if (loader) {
+              loader.style.opacity = '0';
+              loader.style.pointerEvents = 'none';
+              setTimeout(function() { if (loader) loader.style.display = 'none'; }, 400);
+            }
+          }
+          if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(forceDismissLoaders, 150);
+          } else {
+            window.addEventListener('DOMContentLoaded', forceDismissLoaders);
+            window.addEventListener('load', forceDismissLoaders);
+          }
+          setTimeout(forceDismissLoaders, 600);
+        })();
+      </script>
+    `;
+
+    let fullHtml = rawCode;
+    if (!rawCode.toLowerCase().includes("<html") && !rawCode.toLowerCase().includes("<!doctype")) {
+      fullHtml = `
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; }
+            </style>
+          </head>
+          <body class="p-4 bg-slate-900 text-white min-h-screen">
+            ${rawCode}
+          </body>
+        </html>
+      `;
     }
 
-    return `
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>
-            body { font-family: system-ui, -apple-system, sans-serif; }
-          </style>
-        </head>
-        <body class="p-4 bg-slate-900 text-white min-h-screen">
-          ${rawCode}
-        </body>
-      </html>
-    `;
+    if (fullHtml.includes("</body>")) {
+      return fullHtml.replace("</body>", `${iframeCompatScript}</body>`);
+    } else if (fullHtml.includes("</html>")) {
+      return fullHtml.replace("</html>", `${iframeCompatScript}</html>`);
+    }
+    return fullHtml + iframeCompatScript;
   };
 
   const handleRefresh = () => {

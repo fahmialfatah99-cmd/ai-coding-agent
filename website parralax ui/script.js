@@ -161,15 +161,23 @@ const parallaxCode1 = document.getElementById('parallax-code-1');
 const parallaxCode2 = document.getElementById('parallax-code-2');
 const heroContent = document.getElementById('hero-content');
 
-// Hide Loader
-window.addEventListener('load', () => {
+// Reliable Loader Dismissal for Standalone & Iframe Previews
+function dismissLoader() {
+    const ldr = document.getElementById('loader');
+    if (!ldr) return;
+    ldr.classList.add('opacity-0', 'pointer-events-none');
     setTimeout(() => {
-        loader.classList.add('opacity-0');
-        setTimeout(() => {
-            loader.style.display = 'none';
-        }, 700);
+        if (ldr) ldr.style.display = 'none';
     }, 500);
-});
+}
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(dismissLoader, 300);
+} else {
+    window.addEventListener('DOMContentLoaded', dismissLoader);
+    window.addEventListener('load', dismissLoader);
+}
+setTimeout(dismissLoader, 1000);
 
 // Mobile Menu Toggle
 menuBtn.addEventListener('click', () => {
