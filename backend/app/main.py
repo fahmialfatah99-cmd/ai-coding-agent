@@ -55,6 +55,10 @@ app.include_router(models_router, prefix=API_PREFIX)
 app.include_router(sessions_router, prefix=API_PREFIX)
 app.include_router(diff_router, prefix=API_PREFIX)
 
+@app.get("/health")
+def health():
+    return {"status": "healthy", "service": "AI Coding Agent Engine"}
+
 @app.get("/")
 def root():
     return {
