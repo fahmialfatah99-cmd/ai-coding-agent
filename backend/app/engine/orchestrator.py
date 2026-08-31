@@ -2,6 +2,7 @@ import json
 import os
 import re
 import difflib
+from datetime import datetime
 from typing import AsyncGenerator, Dict, Any, List, Optional
 from .docker_sandbox import DockerSandboxManager
 from .ast_parser import ASTCodeChunker
@@ -9,7 +10,7 @@ from .llm_adapter import UnifiedLLMClient
 
 class AgentOrchestrator:
     """
-    Autonomous ReAct Agent Orchestrator with Multi-Provider LLM,
+    Autonomous ReAct Agent Orchestrator with Persistent Memory Learning,
     Multi-File Codebase Auditing, Real-time SSE Streaming, and Automated Self-Correction.
     """
 
@@ -100,12 +101,27 @@ class AgentOrchestrator:
             {
                 "type": "function",
                 "function": {
-                    "name": "run_sandbox_command",
-                    "description": "Executes shell commands (test suites, build, lint, compilers) in the isolated sandbox.",
+                    "name": "record_learned_knowledge",
+                    "description": "Persists new learned knowledge, architectural conventions, coding rules, or notes into the project's permanent MEMORY.md file.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "command": {"type": "string", "description": "Shell command to run, e.g. pytest, npm test, python main.py"}
+                            "topic": {"type": "string", "description": "Title/topic of the learned rule or knowledge"},
+                            "content": {"type": "string", "description": "Detailed explanation, conventions, or rules to remember"}
+                        },
+                        "required": ["topic", "content"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "run_sandbox_command",
+                    "description": "Executes shell commands (e.g. git clone, pytest, npm test, python main.py) in the sandbox.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": {"type": "string", "description": "Shell command to run"}
                         },
                         "required": ["command"]
                     }
@@ -135,9 +151,6 @@ class AgentOrchestrator:
         return "".join(diff)
 
     def _extract_code_blocks(self, text: str) -> List[Dict[str, str]]:
-        """
-        Fallback parser: extracts markdown code blocks with inferred or explicit file paths.
-        """
         pattern = r"```(?:(\w+)(?::([^\n]+)|(?:\s+([^\n]+)))?)?\n([\s\S]*?)```"
         matches = re.findall(pattern, text)
         results = []
@@ -171,6 +184,26 @@ class AgentOrchestrator:
                     rel = os.path.relpath(os.path.join(root, f), self.workspace_path).replace("\\", "/")
                     files_list.append(rel)
             return {"files": files_list, "total": len(files_list)}
+
+        elif tool_name == "record_learned_knowledge":
+            topic = args.get("topic", "General Knowledge")
+            content = args.get("content", "")
+            memory_file = os.path.join(self.workspace_path, "MEMORY.md")
+            
+            entry = f"\n\n### 📌 {topic} (Recorded: {datetime.now().strftime('%Y-%m-%d %H:%M')})\n{content}\n"
+            
+            if not os.path.exists(memory_file):
+                with open(memory_file, "w", encoding="utf-8") as f:
+                    f.write("# 🧠 Project Knowledge & Learned Conventions\n" + entry)
+            else:
+                with open(memory_file, "a", encoding="utf-8") as f:
+                    f.write(entry)
+                    
+            return {
+                "status": "success",
+                "message": f"Knowledge '{topic}' recorded permanently into MEMORY.md",
+                "file_path": "MEMORY.md"
+            }
 
         elif tool_name == "read_file":
             target = os.path.join(self.workspace_path, args.get("path", ""))
@@ -258,16 +291,32 @@ class AgentOrchestrator:
         max_iterations: int = 8
     ) -> AsyncGenerator[str, None]:
         """
-        Executes autonomous ReAct loop with real-time SSE streaming, automatic tool dispatching, & self-healing.
+        Executes autonomous ReAct loop with real-time SSE streaming, learned memory injection, & self-healing.
         """
         system_prompt = (
             "You are an expert Senior Autonomous AI Software Engineer inside a Cursor-Class Web IDE (Cursor Composer / Devin standard).\n\n"
             "MANDATORY OPERATIONAL DIRECTIVES:\n"
             "1. CODEBASE-WIDE CAPABILITY: You have full access to the entire project workspace. When asked to review, audit, check, or refine all files in the project, start by calling `list_workspace_files` or `read_file` across all modules.\n"
-            "2. DIRECT CODE WRITING: When asked to build, write, create, generate, or refactor code, you MUST ALWAYS invoke the `write_file` or `apply_diff_patch` tool to directly create and update files in the workspace editor. DO NOT just output raw markdown code in conversational text.\n"
-            "3. SANDBOX VERIFICATION: Run commands using `run_sandbox_command` (e.g. tests, lint, compiler) to verify correctness.\n"
-            "4. AUTONOMOUS SELF-HEALING: If tests or commands fail in the sandbox, inspect the error output and patch the code autonomously until everything passes."
+            "2. CONTINUOUS LEARNING & MEMORY: If the user provides custom rules, conventions, or knowledge to remember, invoke `record_learned_knowledge` to save it permanently in `MEMORY.md`.\n"
+            "3. EXTERNAL CODE & GITHUB: You can clone, fetch, or inspect external GitHub repositories via `run_sandbox_command` (e.g. `git clone <url>`) or `read_file` to learn patterns and adapt them.\n"
+            "4. DIRECT CODE WRITING: When asked to build, write, create, generate, or refactor code, you MUST ALWAYS invoke the `write_file` or `apply_diff_patch` tool to directly create and update files in the workspace editor. DO NOT just output raw markdown code in conversational text.\n"
+            "5. AUTONOMOUS SELF-HEALING: Run tests using `run_sandbox_command`. If any command fails, inspect the error output and patch the code autonomously until everything passes."
         )
+
+        # Inject persistent project knowledge / MEMORY.md if present
+        memory_files = ["MEMORY.md", ".agent/rules.md", ".cursorrules", "ARCHITECTURE.md"]
+        learned_knowledge = []
+        for mf in memory_files:
+            mf_path = os.path.join(self.workspace_path, mf)
+            if os.path.exists(mf_path):
+                try:
+                    with open(mf_path, "r", encoding="utf-8") as f:
+                        learned_knowledge.append(f"### 🧠 Persistent Project Memory from `{mf}`:\n{f.read()}")
+                except Exception:
+                    pass
+
+        if learned_knowledge:
+            system_prompt += "\n\n" + "\n\n".join(learned_knowledge)
 
         user_prompt_parts = [f"Instruction: {user_instruction}"]
         if active_file:
@@ -351,8 +400,9 @@ class AgentOrchestrator:
 
                     if "diff" in tool_result and tool_result["diff"]:
                         yield f"data: {json.dumps({'type': 'file_modified', 'path': tool_result.get('file_path'), 'diff': tool_result['diff']})}\n\n"
-                    elif fn_name == "write_file" and tool_result.get("status") == "success":
-                        yield f"data: {json.dumps({'type': 'file_modified', 'path': fn_args.get('path'), 'diff': tool_result.get('diff', '')})}\n\n"
+                    elif fn_name in {"write_file", "record_learned_knowledge"} and tool_result.get("status") == "success":
+                        target_p = tool_result.get("file_path", fn_args.get("path"))
+                        yield f"data: {json.dumps({'type': 'file_modified', 'path': target_p, 'diff': tool_result.get('diff', '')})}\n\n"
 
                     messages.append({
                         "role": "tool",
