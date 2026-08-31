@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 from typing import Dict, Any, Optional
 
@@ -11,9 +12,9 @@ except ImportError:
 
 class DockerSandboxManager:
     """
-    Isolated sandbox environment manager.
-    Runs commands in an isolated Docker container with memory & CPU constraints.
-    Falls back gracefully to local subprocess if Docker is unavailable.
+    Cross-Platform Sandbox Environment Manager (Linux / Windows / Docker).
+    Runs commands in an isolated Docker container with memory & CPU constraints,
+    with robust local fallback supporting PowerShell on Windows and bash on Linux.
     """
     
     def __init__(
@@ -35,7 +36,6 @@ class DockerSandboxManager:
         if HAS_DOCKER_LIB:
             try:
                 self.docker_client = docker.from_env()
-                # Test ping
                 self.docker_client.ping()
             except Exception:
                 self.docker_client = None
@@ -89,8 +89,7 @@ class DockerSandboxManager:
                         "success": exec_res.exit_code == 0,
                         "environment": "docker_sandbox"
                     }
-                except Exception as e:
-                    # Fallback to local subprocess on container error
+                except Exception:
                     pass
 
         # 2. Local Subprocess Fallback
@@ -98,14 +97,27 @@ class DockerSandboxManager:
 
     def _run_local_fallback(self, cmd: str, timeout_sec: int) -> Dict[str, Any]:
         try:
-            res = subprocess.run(
-                cmd,
-                shell=True,
-                cwd=self.workspace_path,
-                capture_output=True,
-                text=True,
-                timeout=timeout_sec
-            )
+            if os.name == "nt":
+                # Use PowerShell on Windows for POSIX compatibility (mkdir -p, python -c, ls, etc.)
+                args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", cmd]
+                res = subprocess.run(
+                    args,
+                    cwd=self.workspace_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_sec
+                )
+            else:
+                res = subprocess.run(
+                    cmd,
+                    shell=True,
+                    executable="/bin/bash",
+                    cwd=self.workspace_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_sec
+                )
+
             return {
                 "exit_code": res.returncode,
                 "stdout": res.stdout,

@@ -10,7 +10,7 @@ from .llm_adapter import UnifiedLLMClient
 class AgentOrchestrator:
     """
     Autonomous ReAct Agent Orchestrator with Multi-Provider LLM,
-    Tool Dispatching, Real-time SSE Streaming, and Automated Self-Correction.
+    Multi-File Codebase Auditing, Real-time SSE Streaming, and Automated Self-Correction.
     """
 
     def __init__(
@@ -43,6 +43,32 @@ class AgentOrchestrator:
             {
                 "type": "function",
                 "function": {
+                    "name": "list_workspace_files",
+                    "description": "Lists all existing files and subdirectories across the entire project workspace. Use this to audit or review all code files in the project.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Reads the entire content of an existing file in the workspace.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "Relative file path from workspace root"}
+                        },
+                        "required": ["path"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "write_file",
                     "description": "Writes or creates a code file in the workspace. Use this tool whenever asked to write, create, generate, or refactor code.",
                     "parameters": {
@@ -68,20 +94,6 @@ class AgentOrchestrator:
                             "replacement_string": {"type": "string", "description": "New replacement substring"}
                         },
                         "required": ["path", "target_string", "replacement_string"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "read_file",
-                    "description": "Reads the entire content of an existing file in the workspace.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "path": {"type": "string", "description": "Relative file path from workspace root"}
-                        },
-                        "required": ["path"]
                     }
                 }
             },
@@ -132,7 +144,6 @@ class AgentOrchestrator:
         for lang, explicit_path1, explicit_path2, code in matches:
             path = explicit_path1.strip() or explicit_path2.strip()
             if not path:
-                # Check first line of code for filename comment e.g. # calculator.py or // app.js
                 first_line = code.split("\n", 1)[0].strip()
                 if first_line.startswith(("#", "//", "/*", "<!--")) and ("." in first_line):
                     cleaned = re.sub(r"^[#/\*<!\- ]+", "", first_line).replace("-->", "").strip()
@@ -152,7 +163,16 @@ class AgentOrchestrator:
         """
         Dispatches tool calls safely within the workspace.
         """
-        if tool_name == "read_file":
+        if tool_name == "list_workspace_files":
+            files_list = []
+            for root, dirs, files in os.walk(self.workspace_path):
+                dirs[:] = [d for d in dirs if d not in {".git", "__pycache__", "node_modules", ".venv"}]
+                for f in files:
+                    rel = os.path.relpath(os.path.join(root, f), self.workspace_path).replace("\\", "/")
+                    files_list.append(rel)
+            return {"files": files_list, "total": len(files_list)}
+
+        elif tool_name == "read_file":
             target = os.path.join(self.workspace_path, args.get("path", ""))
             if not os.path.exists(target):
                 return {"error": f"File '{args.get('path')}' does not exist."}
@@ -235,18 +255,18 @@ class AgentOrchestrator:
         user_instruction: str,
         active_file: Optional[str] = None,
         file_content: Optional[str] = None,
-        max_iterations: int = 6
+        max_iterations: int = 8
     ) -> AsyncGenerator[str, None]:
         """
         Executes autonomous ReAct loop with real-time SSE streaming, automatic tool dispatching, & self-healing.
         """
         system_prompt = (
-            "You are an expert Senior Autonomous AI Software Engineer inside a Cursor-Class Web IDE (like Cursor Composer / Devin).\n\n"
+            "You are an expert Senior Autonomous AI Software Engineer inside a Cursor-Class Web IDE (Cursor Composer / Devin standard).\n\n"
             "MANDATORY OPERATIONAL DIRECTIVES:\n"
-            "1. DIRECT CODE WRITING: When asked to build, write, create, generate, or refactor code, you MUST ALWAYS invoke the `write_file` or `apply_diff_patch` tool to directly create and update files in the workspace editor. DO NOT just output raw markdown code in conversational text.\n"
-            "2. IMMEDIATE ACTION: Start by inspecting files if needed, then immediately write/patch the code files.\n"
+            "1. CODEBASE-WIDE CAPABILITY: You have full access to the entire project workspace. When asked to review, audit, check, or refine all files in the project, start by calling `list_workspace_files` or `read_file` across all modules.\n"
+            "2. DIRECT CODE WRITING: When asked to build, write, create, generate, or refactor code, you MUST ALWAYS invoke the `write_file` or `apply_diff_patch` tool to directly create and update files in the workspace editor. DO NOT just output raw markdown code in conversational text.\n"
             "3. SANDBOX VERIFICATION: Run commands using `run_sandbox_command` (e.g. tests, lint, compiler) to verify correctness.\n"
-            "4. SELF-HEALING: If tests fail in the sandbox, inspect the error output and patch the code autonomously."
+            "4. AUTONOMOUS SELF-HEALING: If tests or commands fail in the sandbox, inspect the error output and patch the code autonomously until everything passes."
         )
 
         user_prompt_parts = [f"Instruction: {user_instruction}"]
@@ -255,7 +275,7 @@ class AgentOrchestrator:
         if file_content is not None:
             user_prompt_parts.append(f"\nActive File Content:\n```\n{file_content}\n```")
 
-        messages = [
+        messages: List[Dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": "\n".join(user_prompt_parts)}
         ]
@@ -285,32 +305,31 @@ class AgentOrchestrator:
                 if not tool_calls and llm_res.get("content"):
                     extracted_blocks = self._extract_code_blocks(llm_res["content"])
                     if extracted_blocks:
-                        tool_calls = [
-                            {
-                                "id": f"auto_write_{i}",
-                                "type": "function",
-                                "function": {
-                                    "name": "write_file",
-                                    "arguments": json.dumps(blk)
-                                }
-                            } for i, blk in enumerate(extracted_blocks)
-                        ]
+                        for blk in extracted_blocks:
+                            res = await self.execute_tool("write_file", blk)
+                            yield f"data: {json.dumps({'type': 'tool_call', 'tool': 'write_file', 'args': blk})}\n\n"
+                            yield f"data: {json.dumps({'type': 'tool_result', 'tool': 'write_file', 'result': res})}\n\n"
+                            yield f"data: {json.dumps({'type': 'file_modified', 'path': blk['path'], 'diff': res.get('diff', '')})}\n\n"
+                        yield f"data: {json.dumps({'type': 'done', 'content': 'Code extracted and written directly to files.'})}\n\n"
+                        break
 
-                # Append assistant message to context
-                messages.append({
+                # Append assistant message strictly conforming to OpenAI schema
+                assistant_msg: Dict[str, Any] = {
                     "role": "assistant",
-                    "content": llm_res.get("content") or "",
-                    "tool_calls": [
+                    "content": llm_res.get("content") or None
+                }
+                if tool_calls:
+                    assistant_msg["tool_calls"] = [
                         {
-                            "id": tc["id"],
+                            "id": tc.get("id", f"call_{i}"),
                             "type": "function",
                             "function": {
                                 "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"]
+                                "arguments": tc["function"]["arguments"] if isinstance(tc["function"]["arguments"], str) else json.dumps(tc["function"]["arguments"])
                             }
-                        } for tc in tool_calls
-                    ] if tool_calls else None
-                })
+                        } for i, tc in enumerate(tool_calls)
+                    ]
+                messages.append(assistant_msg)
 
                 if not tool_calls:
                     yield f"data: {json.dumps({'type': 'done', 'content': 'Task completed and verified.'})}\n\n"
@@ -318,8 +337,9 @@ class AgentOrchestrator:
 
                 for tc in tool_calls:
                     fn_name = tc["function"]["name"]
+                    raw_args = tc["function"].get("arguments", "{}")
                     try:
-                        fn_args = json.loads(tc["function"]["arguments"])
+                        fn_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
                     except Exception:
                         fn_args = {}
 
@@ -336,8 +356,8 @@ class AgentOrchestrator:
 
                     messages.append({
                         "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": json.dumps(tool_result)
+                        "tool_call_id": tc.get("id", "call_0"),
+                        "content": json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result)
                     })
 
                     # If sandbox command failed, notify SSE for self-correction feedback
