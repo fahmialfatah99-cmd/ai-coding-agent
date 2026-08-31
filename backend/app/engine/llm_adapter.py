@@ -1,12 +1,13 @@
 import json
 import os
+import asyncio
 from typing import List, Dict, Any, Optional
 import httpx
 
 class UnifiedLLMClient:
     """
     Multi-Provider LLM Client with Real-Time Dynamic Model Discovery,
-    SSE Stream & Standard JSON Parser with Reasoning Content Support.
+    Exponential Backoff Auto-Retry (3x), and Universal SSE Stream + JSON Parser.
     Optimized for 9Router local/cloud AI gateway with automatic fallback.
     """
     
@@ -50,7 +51,7 @@ class UnifiedLLMClient:
         temperature: float = 0.2
     ) -> Dict[str, Any]:
         """
-        Executes chat completion request and handles both standard JSON and streaming SSE responses.
+        Executes chat completion request with 3x Exponential Backoff Retry on network/timeout/rate-limit issues.
         """
         if not self.api_key and self.provider != "ollama":
             return {
@@ -91,45 +92,57 @@ class UnifiedLLMClient:
                 payload["tool_choice"] = "auto"
             endpoint = f"{self.base_url}/chat/completions"
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        max_retries = 3
+        backoff_delays = [1.0, 2.5, 5.0]
+        last_error = ""
+
+        for attempt in range(max_retries):
             try:
-                response = await client.post(endpoint, headers=headers, json=payload)
-                response.raise_for_status()
-                
-                content_type = response.headers.get("content-type", "")
-                raw_text = response.text
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(endpoint, headers=headers, json=payload)
+                    response.raise_for_status()
+                    
+                    content_type = response.headers.get("content-type", "")
+                    raw_text = response.text
 
-                # Check if the gateway returned an SSE event stream (e.g. 9Router default behavior)
-                if "text/event-stream" in content_type or raw_text.strip().startswith("data:"):
-                    return self._parse_sse_stream_response(raw_text)
+                    # Check if the gateway returned an SSE event stream (e.g. 9Router default behavior)
+                    if "text/event-stream" in content_type or raw_text.strip().startswith("data:"):
+                        return self._parse_sse_stream_response(raw_text)
 
-                if self.provider == "anthropic":
-                    data = response.json()
-                    content_blocks = data.get("content", [])
-                    text = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
-                    return {
-                        "role": "assistant",
-                        "content": text,
-                        "tool_calls": [],
-                        "reasoning": ""
-                    }
-                else:
-                    data = response.json()
-                    choice = data.get("choices", [{}])[0]
-                    message = choice.get("message", {})
-                    return {
-                        "role": message.get("role", "assistant"),
-                        "content": message.get("content", ""),
-                        "tool_calls": message.get("tool_calls", []),
-                        "reasoning": message.get("reasoning_content", "")
-                    }
+                    if self.provider == "anthropic":
+                        data = response.json()
+                        content_blocks = data.get("content", [])
+                        text = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
+                        return {
+                            "role": "assistant",
+                            "content": text,
+                            "tool_calls": [],
+                            "reasoning": ""
+                        }
+                    else:
+                        data = response.json()
+                        choice = data.get("choices", [{}])[0]
+                        message = choice.get("message", {})
+                        return {
+                            "role": message.get("role", "assistant"),
+                            "content": message.get("content", ""),
+                            "tool_calls": message.get("tool_calls", []),
+                            "reasoning": message.get("reasoning_content", "")
+                        }
             except Exception as e:
-                return {
-                    "role": "assistant",
-                    "content": f"LLM Request failed ({self.provider} - {self.model}): {str(e)}",
-                    "tool_calls": [],
-                    "reasoning": ""
-                }
+                last_error = str(e)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoff_delays[attempt])
+                    continue
+                else:
+                    break
+
+        return {
+            "role": "assistant",
+            "content": f"LLM Request failed after {max_retries} automatic retries ({self.provider} - {self.model}): {last_error}",
+            "tool_calls": [],
+            "reasoning": ""
+        }
 
     def _parse_sse_stream_response(self, raw_text: str) -> Dict[str, Any]:
         """
