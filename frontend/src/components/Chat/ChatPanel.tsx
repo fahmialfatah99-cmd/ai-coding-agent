@@ -18,6 +18,8 @@ import {
   Globe,
   X,
   Trash2,
+  CheckCircle,
+  Activity,
 } from "lucide-react";
 import { ModelProvider, AgentSSEEvent } from "@/lib/api";
 
@@ -165,6 +167,48 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
+      {/* 🔴/🟢 REAL-TIME AGENT STATUS BANNER (PROSES vs DIAM) */}
+      <div
+        className={`flex items-center justify-between px-3.5 py-1.5 border-b text-xs transition-all duration-300 select-none ${
+          isStreaming
+            ? "bg-purple-950/90 border-purple-800 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+            : "bg-[#131313] border-neutral-800/80 text-neutral-400"
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          {isStreaming ? (
+            <>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500"></span>
+              </span>
+              <span className="font-bold text-[11px] tracking-wide text-purple-200 animate-pulse flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-purple-400 animate-spin" />
+                AGENT SEDANG PROSES (BEKERJA...)
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+              <span className="font-medium text-[11px] text-emerald-400 flex items-center gap-1">
+                <CheckCircle className="w-3 h-3 text-emerald-400" />
+                AGENT DIAM (SIAP MENERIMA PERINTAH)
+              </span>
+            </>
+          )}
+        </div>
+
+        {isStreaming && onStopStreaming && (
+          <button
+            onClick={onStopStreaming}
+            className="flex items-center gap-1 px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-[10px] font-semibold transition shadow-sm"
+          >
+            <StopCircle className="w-3 h-3" />
+            <span>Stop Agent</span>
+          </button>
+        )}
+      </div>
+
       {/* Target Execution Scope Indicator */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-[#121212] border-b border-neutral-800/80 text-[11px] select-none">
         <div className="flex items-center gap-1.5">
@@ -241,7 +285,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${
                   msg.role === "user"
                     ? "bg-blue-600 text-white"
-                    : "bg-purple-600 text-white"
+                    : "bg-purple-600 text-white shadow-[0_0_8px_rgba(168,85,247,0.4)]"
                 }`}
               >
                 {msg.role === "user" ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
@@ -347,14 +391,35 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         ))}
 
         {isStreaming && (
-          <div className="flex items-center gap-2 text-xs text-purple-400 animate-pulse font-mono pl-8">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Agent reasoning and executing tools...</span>
+          <div className="flex items-center gap-2 text-xs text-purple-400 animate-pulse font-mono pl-8 bg-purple-950/30 p-2.5 rounded-lg border border-purple-800/40">
+            <Sparkles className="w-4 h-4 text-purple-400 animate-spin" />
+            <span className="font-semibold">Agent sedang bekerja menyusun kode & menjalankan tools...</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Real-Time Bottom Activity State Bar */}
+      {isStreaming ? (
+        <div className="px-3.5 py-1.5 bg-purple-950/70 border-t border-purple-800/60 flex items-center justify-between text-xs text-purple-300 animate-pulse select-none">
+          <div className="flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5 text-purple-400 animate-spin" />
+            <span className="font-mono text-[11px] font-medium">Sedang memproses instruksi & memodifikasi workspace...</span>
+          </div>
+          <span className="text-[10px] bg-purple-900/80 px-2 py-0.5 rounded text-purple-200 font-mono font-bold">
+            PROSES...
+          </span>
+        </div>
+      ) : (
+        <div className="px-3.5 py-1 bg-neutral-900/60 border-t border-neutral-800/80 flex items-center justify-between text-[10px] text-neutral-400 select-none">
+          <span className="flex items-center gap-1.5 text-neutral-300">
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Agent diam & siap menerima tugas baru.</span>
+          </span>
+          <span className="font-mono text-neutral-500">Enter to send • Shift+Enter for newline</span>
+        </div>
+      )}
 
       {/* Input Box */}
       <form onSubmit={handleSubmit} className="p-3 bg-[#141414] border-t border-neutral-800">
@@ -369,12 +434,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               }
             }}
             placeholder={
-              activeFile
+              isStreaming
+                ? "Agent sedang bekerja... Mohon tunggu atau klik tombol Stop."
+                : activeFile
                 ? `Ask agent about ${activeFile} or switch to All Files...`
                 : "Ask agent to build features, check all files, or run tests across the whole project..."
             }
+            disabled={isStreaming}
             rows={2}
-            className="w-full bg-[#1e1e1e] border border-neutral-700 rounded-lg pl-3 pr-20 py-2 text-xs text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-accent resize-none"
+            className={`w-full bg-[#1e1e1e] border rounded-lg pl-3 pr-20 py-2 text-xs text-neutral-200 placeholder-neutral-500 focus:outline-none resize-none transition ${
+              isStreaming
+                ? "border-purple-800/60 bg-neutral-950/80 cursor-not-allowed opacity-80"
+                : "border-neutral-700 focus:border-accent"
+            }`}
           />
 
           <div className="absolute right-2.5 bottom-2.5 flex items-center gap-1.5">
@@ -382,10 +454,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <button
                 type="button"
                 onClick={onStopStreaming}
-                className="p-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded transition"
+                className="p-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded transition shadow-sm animate-pulse"
                 title="Stop execution"
               >
-                <StopCircle className="w-3.5 h-3.5" />
+                <StopCircle className="w-4 h-4" />
               </button>
             ) : (
               <button

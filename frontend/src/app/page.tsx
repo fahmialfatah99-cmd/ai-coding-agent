@@ -22,7 +22,7 @@ import {
   ModelProvider,
   AgentSSEEvent,
 } from "@/lib/api";
-import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain, ChevronDown, FolderCheck } from "lucide-react";
+import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain, ChevronDown, FolderCheck, Sparkles } from "lucide-react";
 
 export default function Home() {
   const [workspacePath, setWorkspacePath] = useState("./workspace");
@@ -486,7 +486,20 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* Real-Time Agent Process vs Idle Indicator */}
+          {isStreaming ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-950/90 border border-purple-700 text-purple-200 text-xs font-semibold animate-pulse shadow-[0_0_12px_rgba(168,85,247,0.4)] select-none">
+              <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-spin" />
+              <span className="text-[11px] font-bold">AGENT: PROSES (BEKERJA...)</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-900 border border-neutral-800 text-emerald-400 text-xs font-medium select-none">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" />
+              <span className="text-[11px]">AGENT: DIAM (SIAP)</span>
+            </div>
+          )}
+
           <button
             onClick={() => setIsSkillsModalOpen(true)}
             className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white px-2.5 py-1 rounded border border-neutral-800 transition cursor-pointer text-xs select-none shadow-sm"
