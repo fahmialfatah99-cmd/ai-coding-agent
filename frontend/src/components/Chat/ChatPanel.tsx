@@ -352,16 +352,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     {msg.modifiedFiles && msg.modifiedFiles.map((mf, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-2 bg-emerald-950/30 border border-emerald-800/40 rounded text-xs text-emerald-300"
+                        onClick={() => onReviewDiff && onReviewDiff(mf.path, mf.diff)}
+                        className="flex items-center justify-between p-2.5 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-800/50 rounded-lg text-xs text-emerald-300 cursor-pointer transition select-none shadow-sm group"
+                        title={`Click to open ${mf.path} in Monaco Editor`}
                       >
-                        <div className="flex items-center gap-1.5">
-                          <FileCode className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Modified: {mf.path}</span>
+                        <div className="flex items-center gap-2">
+                          <FileCode className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span className="font-mono font-medium truncate max-w-[190px]">{mf.path}</span>
                         </div>
                         {onReviewDiff && (
                           <button
-                            onClick={() => onReviewDiff(mf.path, mf.diff)}
-                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-medium transition"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onReviewDiff(mf.path, mf.diff);
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-semibold transition shadow-sm group-hover:scale-105"
                           >
                             Review Diff
                           </button>

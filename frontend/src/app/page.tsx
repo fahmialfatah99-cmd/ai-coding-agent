@@ -331,14 +331,24 @@ export default function Home() {
     }
   };
 
-  const handleReviewDiff = async (filePath: string, diff: string) => {
+  const handleReviewDiff = async (filePath: string, diff?: string) => {
     try {
       const current = await readFile(workspacePath, filePath);
+      setActiveFile(filePath);
+      setActiveCode(current);
       setDiffFilePath(filePath);
-      setOriginalDiffCode(activeCode || current);
-      setModifiedDiffCode(current);
+      setViewMode("editor");
+      localStorage.setItem("ai_agent_active_file", filePath);
+
+      if (diff && diff.trim()) {
+        setOriginalDiffCode(activeCode && activeCode !== current ? activeCode : current);
+        setModifiedDiffCode(current);
+      } else {
+        setOriginalDiffCode(null);
+        setModifiedDiffCode(null);
+      }
     } catch (e) {
-      console.error(e);
+      console.error("Failed to open or review diff for file", e);
     }
   };
 
