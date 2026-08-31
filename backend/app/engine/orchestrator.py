@@ -472,10 +472,13 @@ class AgentOrchestrator:
                         "content": json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result)
                     })
 
-                    # If sandbox command failed, notify SSE for self-correction feedback
+                    # If sandbox command failed on critical tasks (exclude benign inspection checks like cat/grep/which)
                     if fn_name == "run_sandbox_command" and not tool_result.get("success", False):
+                        cmd_str = fn_args.get("command", "").strip().lower()
                         exit_code = tool_result.get("exit_code", -1)
-                        yield f"data: {json.dumps({'type': 'warning', 'content': f'Sandbox execution failed (exit code {exit_code}). Triggering self-correction patch...'})}\n\n"
+                        benign_prefixes = ("cat ", "grep ", "test ", "which ", "head ", "tail ", "find ", "ls ")
+                        if not any(cmd_str.startswith(bp) for bp in benign_prefixes):
+                            yield f"data: {json.dumps({'type': 'warning', 'content': f'Command returned code {exit_code}. Agent is self-correcting...'})}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'content': f'Execution error: {str(e)}'})}\n\n"
