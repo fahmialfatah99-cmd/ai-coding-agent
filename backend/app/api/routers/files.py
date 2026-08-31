@@ -29,6 +29,36 @@ class FileDeleteRequest(BaseModel):
     workspace_path: str = "./workspace"
     file_path: str
 
+@router.get("/workspaces")
+async def list_available_workspaces():
+    """
+    Returns list of available top-level project folders for 1-click selection across Windows and Linux.
+    """
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    ignore_dirs = {".git", "node_modules", "__pycache__", ".next", ".pytest_cache", "venv", ".venv"}
+    
+    folders = []
+    try:
+        for entry in os.scandir(base_dir):
+            if entry.is_dir() and entry.name not in ignore_dirs:
+                folders.append({
+                    "name": entry.name,
+                    "path": f"./{entry.name}",
+                    "abs_path": entry.path.replace("\\", "/")
+                })
+    except Exception:
+        pass
+        
+    # Ensure default ./workspace is always included
+    if not any(f["path"] == "./workspace" for f in folders):
+        folders.insert(0, {
+            "name": "workspace",
+            "path": "./workspace",
+            "abs_path": os.path.join(base_dir, "workspace").replace("\\", "/")
+        })
+        
+    return {"workspaces": folders, "base_dir": base_dir.replace("\\", "/")}
+
 @router.get("")
 async def get_file_tree(workspace_path: str = Query("./workspace")):
     """Recursively lists files and directories in the workspace."""
@@ -74,18 +104,17 @@ async def read_file(req: FileReadRequest):
     
     try:
         with open(abs_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return {"file_path": req.file_path, "content": content}
+            return {"content": f.read(), "file_path": req.file_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
 
 @router.post("/write")
 async def write_file(req: FileWriteRequest):
-    """Creates or updates a workspace file."""
+    """Writes content to a workspace file."""
     abs_root = get_resolved_workspace(req.workspace_path)
     abs_path = os.path.abspath(os.path.join(abs_root, req.file_path))
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-    
+
     try:
         with open(abs_path, "w", encoding="utf-8") as f:
             f.write(req.content)
@@ -95,18 +124,18 @@ async def write_file(req: FileWriteRequest):
 
 @router.post("/delete")
 async def delete_file(req: FileDeleteRequest):
-    """Deletes a file from the workspace."""
+    """Deletes a file from workspace."""
     abs_root = get_resolved_workspace(req.workspace_path)
     abs_path = os.path.abspath(os.path.join(abs_root, req.file_path))
     if not os.path.exists(abs_path):
-        raise HTTPException(status_code=404, detail="File not found.")
-    
+        raise HTTPException(status_code=404, detail="File not found")
+        
     try:
         if os.path.isdir(abs_path):
             import shutil
             shutil.rmtree(abs_path)
         else:
             os.remove(abs_path)
-        return {"status": "deleted", "file_path": req.file_path}
+        return {"status": "success", "file_path": req.file_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")

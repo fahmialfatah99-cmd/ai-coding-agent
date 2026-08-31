@@ -51,6 +51,18 @@ export async function sync9RouterModels(apiKey?: string): Promise<string[]> {
   }
 }
 
+export async function fetchWorkspaces(): Promise<{ name: string; path: string; abs_path: string }[]> {
+  try {
+    const res = await fetch(`${API_BASE}/files/workspaces`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.workspaces || [];
+  } catch (err) {
+    console.error("Failed to fetch workspaces", err);
+    return [];
+  }
+}
+
 export async function fetchFileTree(workspacePath: string = "./workspace"): Promise<FileNode[]> {
   try {
     const res = await fetch(`${API_BASE}/files?workspace_path=${encodeURIComponent(workspacePath)}`);

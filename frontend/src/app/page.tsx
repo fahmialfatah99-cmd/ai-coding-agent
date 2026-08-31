@@ -12,6 +12,7 @@ import { ChatPanel, ChatMessage } from "@/components/chat/ChatPanel";
 import { TerminalPanel, TerminalLog } from "@/components/terminal/TerminalPanel";
 import {
   fetchFileTree,
+  fetchWorkspaces,
   readFile,
   writeFile,
   fetchModels,
@@ -21,11 +22,13 @@ import {
   ModelProvider,
   AgentSSEEvent,
 } from "@/lib/api";
-import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain } from "lucide-react";
+import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain, ChevronDown, FolderCheck } from "lucide-react";
 
 export default function Home() {
   const [workspacePath, setWorkspacePath] = useState("./workspace");
+  const [availableWorkspaces, setAvailableWorkspaces] = useState<{ name: string; path: string; abs_path: string }[]>([]);
   const [isEditingWorkspace, setIsEditingWorkspace] = useState(false);
+  const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
   const [tempWorkspaceInput, setTempWorkspaceInput] = useState("./workspace");
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>("");
@@ -122,9 +125,19 @@ export default function Home() {
   };
 
   const refreshFiles = async (): Promise<FileNode[]> => {
-    const tree = await fetchFileTree(workspacePath);
-    setFileTree(tree);
-    return tree;
+    try {
+      const [tree, ws] = await Promise.all([
+        fetchFileTree(workspacePath),
+        fetchWorkspaces(),
+      ]);
+      setFileTree(tree);
+      if (ws && ws.length > 0) {
+        setAvailableWorkspaces(ws);
+      }
+      return tree;
+    } catch {
+      return [];
+    }
   };
 
   const handleSelectFile = async (filePath: string) => {
@@ -345,49 +358,121 @@ export default function Home() {
             <span>AI CODING AGENT</span>
           </div>
           <span className="text-neutral-600">|</span>
-          {isEditingWorkspace ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (tempWorkspaceInput.trim()) {
-                  const cleaned = tempWorkspaceInput.trim();
-                  setWorkspacePath(cleaned);
-                  localStorage.setItem("ai_agent_workspace_path", cleaned);
-                  setIsEditingWorkspace(false);
-                }
-              }}
-              className="flex items-center gap-1"
-            >
-              <input
-                type="text"
-                value={tempWorkspaceInput}
-                onChange={(e) => setTempWorkspaceInput(e.target.value)}
-                placeholder="C:/path/to/folder or ./workspace"
-                autoFocus
-                className="bg-neutral-950 border border-accent rounded px-2 py-0.5 font-mono text-[11px] text-neutral-200 focus:outline-none w-64"
-              />
-              <button
-                type="submit"
-                className="p-1 bg-accent text-white rounded hover:bg-blue-600 transition"
-                title="Apply Local Folder"
+
+          {/* 1-Click Workspace Folder Selector & Switcher */}
+          <div className="relative">
+            {isEditingWorkspace ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (tempWorkspaceInput.trim()) {
+                    const cleaned = tempWorkspaceInput.trim();
+                    setWorkspacePath(cleaned);
+                    localStorage.setItem("ai_agent_workspace_path", cleaned);
+                    setIsEditingWorkspace(false);
+                    setIsWorkspaceDropdownOpen(false);
+                    setActiveFile("");
+                    setActiveCode("");
+                    localStorage.removeItem("ai_agent_active_file");
+                  }
+                }}
+                className="flex items-center gap-1.5 bg-neutral-900 px-2 py-1 rounded border border-accent"
               >
-                <Check className="w-3 h-3" />
-              </button>
-            </form>
-          ) : (
-            <div
-              onClick={() => {
-                setTempWorkspaceInput(workspacePath);
-                setIsEditingWorkspace(true);
-              }}
-              className="flex items-center gap-1.5 text-neutral-400 bg-neutral-900 hover:bg-neutral-800/80 cursor-pointer px-2.5 py-1 rounded border border-neutral-800 transition"
-              title="Click to change local target folder"
-            >
-              <FolderGit2 className="w-3.5 h-3.5 text-neutral-500" />
-              <span className="font-mono">{workspacePath}</span>
-              <Edit3 className="w-3 h-3 text-neutral-500 hover:text-neutral-300 ml-1" />
-            </div>
-          )}
+                <input
+                  type="text"
+                  value={tempWorkspaceInput}
+                  onChange={(e) => setTempWorkspaceInput(e.target.value)}
+                  placeholder="C:/path/to/folder or ./workspace"
+                  autoFocus
+                  className="bg-neutral-950 border border-accent rounded px-2 py-0.5 font-mono text-[11px] text-neutral-200 focus:outline-none w-64"
+                />
+                <button
+                  type="submit"
+                  className="p-1 bg-accent text-white rounded hover:bg-blue-600 transition"
+                  title="Apply Local Folder"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setIsWorkspaceDropdownOpen(!isWorkspaceDropdownOpen)}
+                  className="flex items-center gap-1.5 text-neutral-300 bg-neutral-900 hover:bg-neutral-800 cursor-pointer px-2.5 py-1 rounded border border-neutral-800 transition text-xs font-mono select-none"
+                  title="Click to choose or switch project folder"
+                >
+                  <FolderGit2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="font-semibold">{workspacePath}</span>
+                  <ChevronDown className="w-3 h-3 text-neutral-500" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setTempWorkspaceInput(workspacePath);
+                    setIsEditingWorkspace(true);
+                  }}
+                  className="p-1 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 rounded transition"
+                  title="Type custom path manually"
+                >
+                  <Edit3 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
+            {/* Folder Selection Dropdown Popup */}
+            {isWorkspaceDropdownOpen && !isEditingWorkspace && (
+              <div className="absolute left-0 top-full mt-1.5 w-72 bg-[#181818] border border-neutral-700 rounded-lg shadow-2xl p-2 z-50 animate-fadeIn select-none">
+                <div className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 mb-1">
+                  <span>Available Project Folders</span>
+                  <span className="text-[9px] text-neutral-500">1-Click Switch</span>
+                </div>
+
+                <div className="space-y-1 max-h-56 overflow-y-auto">
+                  {availableWorkspaces.map((ws) => {
+                    const isSelected = workspacePath === ws.path || workspacePath === ws.name;
+                    return (
+                      <button
+                        key={ws.path}
+                        onClick={() => {
+                          setWorkspacePath(ws.path);
+                          setTempWorkspaceInput(ws.path);
+                          localStorage.setItem("ai_agent_workspace_path", ws.path);
+                          setIsWorkspaceDropdownOpen(false);
+                          setActiveFile("");
+                          setActiveCode("");
+                          localStorage.removeItem("ai_agent_active_file");
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition text-left ${
+                          isSelected
+                            ? "bg-accent text-white font-medium shadow-sm"
+                            : "text-neutral-300 hover:bg-neutral-800"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <FolderGit2 className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-white" : "text-amber-400"}`} />
+                          <span className="truncate">{ws.name}</span>
+                        </div>
+                        {isSelected && <FolderCheck className="w-3.5 h-3.5 shrink-0 text-white" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2 mt-1 border-t border-neutral-800">
+                  <button
+                    onClick={() => {
+                      setIsEditingWorkspace(true);
+                      setIsWorkspaceDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-1 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-[11px] font-medium transition"
+                  >
+                    <Edit3 className="w-3 h-3 text-neutral-400" />
+                    <span>Enter Custom / External Path...</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -422,6 +507,8 @@ export default function Home() {
             }}
             onRefresh={refreshFiles}
             onCreateFile={handleCreateFile}
+            availableWorkspaces={availableWorkspaces}
+            currentWorkspace={workspacePath}
             onNewProject={(newPath) => {
               setWorkspacePath(newPath);
               setTempWorkspaceInput(newPath);

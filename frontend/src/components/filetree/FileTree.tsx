@@ -12,6 +12,8 @@ import {
   ChevronDown,
   Layers,
   Globe,
+  FolderGit2,
+  FolderCheck,
 } from "lucide-react";
 import { FileNode } from "@/lib/api";
 
@@ -23,6 +25,8 @@ interface FileTreeProps {
   onRefresh: () => void;
   onCreateFile: (fileName: string) => void;
   onNewProject?: (projectPath: string) => void;
+  availableWorkspaces?: { name: string; path: string; abs_path: string }[];
+  currentWorkspace?: string;
 }
 
 export const FileTree: React.FC<FileTreeProps> = ({
@@ -33,6 +37,8 @@ export const FileTree: React.FC<FileTreeProps> = ({
   onRefresh,
   onCreateFile,
   onNewProject,
+  availableWorkspaces = [],
+  currentWorkspace = "./workspace",
 }) => {
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [isCreating, setIsCreating] = useState(false);
@@ -64,11 +70,18 @@ export const FileTree: React.FC<FileTreeProps> = ({
   const handleCreateProjectSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newProjectName.trim() && onNewProject) {
-      const clean = newProjectName.trim().startsWith("./") || newProjectName.trim().includes(":")
+      const clean = newProjectName.trim().startsWith("./") || newProjectName.trim().includes(":") || newProjectName.trim().startsWith("/")
         ? newProjectName.trim()
         : `./${newProjectName.trim()}`;
       onNewProject(clean);
       setNewProjectName("");
+      setIsCreatingProject(false);
+    }
+  };
+
+  const handleQuickSwitch = (targetPath: string) => {
+    if (onNewProject) {
+      onNewProject(targetPath);
       setIsCreatingProject(false);
     }
   };
@@ -149,12 +162,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
               setIsCreatingProject(!isCreatingProject);
               setIsCreating(false);
             }}
-            className={`p-1 rounded transition ${
+            className={`flex items-center gap-1 px-1.5 py-1 rounded transition text-[11px] ${
               isCreatingProject ? "bg-accent text-white" : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
             }`}
-            title="New Project Folder"
+            title="Switch / Pick Folder or Create New Project"
           >
             <FolderPlus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Pick Folder</span>
           </button>
           <button
             onClick={() => {
@@ -202,23 +216,51 @@ export const FileTree: React.FC<FileTreeProps> = ({
         )}
       </div>
 
-      {/* New Project Folder Inline Form */}
+      {/* 1-Click Folder Switcher & New Project Panel */}
       {isCreatingProject && (
-        <form
+        <div
           onClick={(e) => e.stopPropagation()}
-          onSubmit={handleCreateProjectSubmit}
-          className="p-2 border-b border-neutral-800 bg-neutral-900 flex flex-col gap-1 animate-fadeIn"
+          className="p-2.5 border-b border-neutral-800 bg-[#121212] flex flex-col gap-2 animate-fadeIn select-none"
         >
-          <label className="text-[10px] text-neutral-400 font-medium">Create/Open Project Folder:</label>
-          <input
-            type="text"
-            placeholder="./my_new_app or my_project"
-            value={newProjectName}
-            onChange={(e) => setNewProjectName(e.target.value)}
-            autoFocus
-            className="w-full bg-neutral-950 border border-accent rounded px-2 py-1 text-xs text-neutral-200 focus:outline-none"
-          />
-        </form>
+          <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+            Select Existing Folder:
+          </span>
+
+          {/* Quick Click Folder Chips */}
+          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+            {availableWorkspaces.map((ws) => {
+              const isCurrent = currentWorkspace === ws.path || currentWorkspace === ws.name;
+              return (
+                <button
+                  key={ws.path}
+                  onClick={() => handleQuickSwitch(ws.path)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition ${
+                    isCurrent
+                      ? "bg-accent text-white font-medium shadow-sm"
+                      : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                  }`}
+                >
+                  <FolderGit2 className="w-3 h-3 text-amber-400" />
+                  <span>{ws.name}</span>
+                  {isCurrent && <FolderCheck className="w-3 h-3 text-white ml-0.5" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Custom Path / New Folder Input */}
+          <form onSubmit={handleCreateProjectSubmit} className="flex flex-col gap-1 mt-1">
+            <label className="text-[10px] text-neutral-500">Or enter custom / new folder path:</label>
+            <input
+              type="text"
+              placeholder="./my_app or C:/Projects/App"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              autoFocus
+              className="w-full bg-neutral-950 border border-neutral-700 focus:border-accent rounded px-2 py-1 text-xs text-neutral-200 focus:outline-none"
+            />
+          </form>
+        </div>
       )}
 
       {/* New File Inline Form */}
@@ -244,7 +286,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
       <div className="flex-1 overflow-y-auto py-1">
         {tree.length === 0 ? (
           <div className="text-center text-neutral-600 py-8 text-xs">
-            Empty project workspace.<br />Create a file or ask AI to build a project!
+            Empty folder workspace.<br />Click <b>Pick Folder</b> above to switch to another folder.
           </div>
         ) : (
           tree.map((node) => renderNode(node, 0))
