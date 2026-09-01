@@ -308,6 +308,17 @@ def test_role_specific_clients():
     # Unknown role falls back to default.
     assert orc_split._get_role_client("nope").provider == "9router"
 
+    # When provider is non-9router (e.g. openai) without overrides, all roles use the openai model
+    orc_openai = AgentOrchestrator(
+        workspace_path=test_dir,
+        provider="openai",
+        model="gpt-4o",
+    )
+    assert orc_openai._get_role_client("architect").provider == "openai"
+    assert orc_openai._get_role_client("architect").model == "gpt-4o"
+    assert orc_openai._get_role_client("builder").model == "gpt-4o"
+    assert orc_openai._get_role_client("auditor").model == "gpt-4o"
+
     print("[-] Role-specific client overrides test passed.")
 
 
