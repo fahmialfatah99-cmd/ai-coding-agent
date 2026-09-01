@@ -61,7 +61,7 @@ class AgentOrchestrator:
             default_role_models = {
                 "architect": {"model": "ag/claude-opus-4-6-thinking"},
                 "builder": {"model": "ag/claude-sonnet-4-6"},
-                "auditor": {"model": "ag/gemini-2.5-flash"},
+                "auditor": {"model": "ag/gemini-3.7-flash-high"},
             }
         else:
             default_role_models = {
