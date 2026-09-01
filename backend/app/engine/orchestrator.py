@@ -54,7 +54,19 @@ class AgentOrchestrator:
         # Role-specific model overrides for the team swarm. Each entry can set
         # provider/model/api_key/base_url. Missing keys fall back to llm_client.
         # Supported roles: "architect", "builder", "auditor".
-        self.role_models: Dict[str, Dict[str, Any]] = role_models or {}
+        # Default: architect=strong model (opus/gpt-5), builder=balanced (sonnet/gpt-4o), auditor=cheap (haiku/mini).
+        default_role_models = {
+            "architect": {"model": "ag/claude-opus-4-6-thinking"},
+            "builder": {"model": "ag/claude-sonnet-4-6"},
+            "auditor": {"model": "ag/gemini-2.5-flash"},
+        }
+        if role_models:
+            for role, spec in role_models.items():
+                if role in default_role_models:
+                    default_role_models[role].update(spec)
+                else:
+                    default_role_models[role] = spec
+        self.role_models: Dict[str, Dict[str, Any]] = default_role_models
         self._role_clients: Dict[str, UnifiedLLMClient] = {}
 
     def _get_role_client(self, role: str) -> UnifiedLLMClient:

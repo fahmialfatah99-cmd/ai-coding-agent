@@ -277,10 +277,12 @@ def test_role_specific_clients():
     orc_default = AgentOrchestrator(
         workspace_path=test_dir,
         provider="9router",
-        model="ag/gemini-3.7-flash-high",
+        model="ag/gemini-2.5-flash",
     )
     assert orc_default._get_role_client("architect").provider == "9router"
-    assert orc_default._get_role_client("builder").model == "ag/gemini-3.7-flash-high"
+    assert orc_default._get_role_client("architect").model == "ag/claude-opus-4-6-thinking"
+    assert orc_default._get_role_client("builder").model == "ag/claude-sonnet-4-6"
+    assert orc_default._get_role_client("auditor").model == "ag/gemini-2.5-flash"
     # Calling twice returns the same cached client object.
     assert orc_default._get_role_client("auditor") is orc_default._get_role_client("auditor")
 
@@ -288,7 +290,7 @@ def test_role_specific_clients():
     orc_split = AgentOrchestrator(
         workspace_path=test_dir,
         provider="9router",
-        model="ag/gemini-3.7-flash-high",
+        model="ag/gemini-2.5-flash",
         role_models={
             "architect": {"provider": "openai", "model": "gpt-4o"},
             "builder": {"provider": "anthropic", "model": "claude-sonnet-4-5-20250929"},

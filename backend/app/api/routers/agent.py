@@ -26,7 +26,7 @@ class AgentRunRequest(BaseModel):
     workspace_path: str = "./workspace"
     mode: str = "team"  # "team" (Multi-Agent Swarm + Auditor) or "solo" (Fast Solo ReAct)
     provider: str = "9router"
-    model: Optional[str] = "ag/gemini-3.7-flash-high"
+    model: Optional[str] = "ag/gemini-2.5-flash"
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     max_iterations: int = 8

@@ -1,7 +1,8 @@
 import json
 import os
 import asyncio
-from typing import List, Dict, Any, Optional
+import platform
+from typing import List, Dict, Any, Optional, AsyncGenerator
 import httpx
 
 try:
@@ -9,6 +10,33 @@ try:
     load_dotenv()
 except ImportError:
     pass
+
+
+def _detect_docker_host() -> str:
+    """
+    Detect the correct host for connecting to services from inside a container.
+    Returns the appropriate hostname for the Docker host.
+    """
+    # Check if running inside a container (Linux)
+    if os.path.exists("/.dockerenv"):
+        return "host.docker.internal"
+    
+    # Check if running in Docker on macOS/Windows (WSL2)
+    # In Docker Desktop for Mac/Windows, host.docker.internal is available
+    # We can also check for WSL
+    if platform.system() in ("Darwin", "Windows"):
+        return "host.docker.internal"
+    
+    # Check for WSL (Linux kernel but Windows host)
+    try:
+        with open("/proc/version", "r") as f:
+            if "microsoft" in f.read().lower() or "wsl" in f.read().lower():
+                return "host.docker.internal"
+    except Exception:
+        pass
+    
+    # Default to localhost for Linux native
+    return "127.0.0.1"
 
 
 # ---------------------------------------------------------------------------
@@ -32,19 +60,29 @@ PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
         "base_url": os.getenv("NINEROUTER_BASE_URL", "http://127.0.0.1:20128/v1"),
         "api_style": "openai",
         "api_key_env": ["NINEROUTER_API_KEY", "OPENAI_API_KEY"],
-        "default_model": "ag/gemini-3.7-flash-high",
+        "default_model": "ag/gemini-2.5-flash",
         "fallback_models": [
             "all",
-            "ag/gemini-3.7-flash-high",
-            "ag/gemini-3.7-flash-medium",
-            "ag/gemini-3.5-flash-high",
-            "ag/gemini-3.6-flash-high",
-            "ag/gemini-3-flash-agent",
-            "ag/gemini-3-flash",
+            "ag/gemini-2.5-pro",
+            "ag/gemini-2.5-flash",
+            "ag/gemini-2.5-flash-lite",
+            "ag/gemini-2.0-flash",
+            "ag/claude-opus-4-1",
+            "ag/claude-sonnet-4-5",
             "ag/claude-sonnet-4-6",
             "ag/claude-opus-4-6-thinking",
-            "gemini/gemini-3.7-flash",
-            "nvidia/deepseek-ai/deepseek-v4-pro",
+            "ag/claude-3-7-sonnet",
+            "ag/claude-3-5-sonnet",
+            "ag/claude-3-5-haiku",
+            "gemini/gemini-2.5-pro",
+            "gemini/gemini-2.5-flash",
+            "nvidia/deepseek-ai/deepseek-v3",
+            "nvidia/deepseek-ai/deepseek-r1",
+            "openai/gpt-4o",
+            "openai/gpt-4o-mini",
+            "openai/gpt-5",
+            "openai/o1",
+            "openai/o3-mini",
         ],
         "requires_api_key": False,
         "description": "Local AI Gateway with auto-detected combos (Claude, Gemini, DeepSeek, GPT, Ollama).",
@@ -319,12 +357,15 @@ class UnifiedLLMClient:
         if base_url:
             self.base_url = base_url.rstrip("/")
         elif self.provider == "9router":
+            docker_host = _detect_docker_host()
             self.base_url = os.getenv(
                 "NINEROUTER_BASE_URL",
-                "http://host.docker.internal:20128/v1" if os.path.exists("/.dockerenv") else "http://127.0.0.1:20128/v1",
+                f"http://{docker_host}:20128/v1",
             ).rstrip("/")
         elif self.provider == "ollama":
-            self.base_url = os.getenv("OLLAMA_BASE_URL", cfg["base_url"]).rstrip("/")
+            docker_host = _detect_docker_host()
+            default_ollama = f"http://{docker_host}:11434/v1"
+            self.base_url = os.getenv("OLLAMA_BASE_URL", default_ollama).rstrip("/")
         else:
             self.base_url = cfg["base_url"].rstrip("/")
 
@@ -473,6 +514,203 @@ class UnifiedLLMClient:
         }
 
     # ---------------------------------------------------------------------
+    # Streaming chat completion (for real-time token streaming to frontend)
+    # ---------------------------------------------------------------------
+    async def chat_completion_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        temperature: float = 0.2,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Executes chat completion with streaming response.
+        Yields partial completion chunks as they arrive.
+        """
+        if not self.api_key and self.requires_api_key:
+            yield {
+                "role": "assistant",
+                "content": (
+                    f"[Missing API key for provider '{self.provider}']. "
+                    f"Set one of: {', '.join(PROVIDER_CATALOG[self.provider].get('api_key_env', []))} "
+                    f"in the backend .env, or pass api_key in the request body."
+                ),
+                "tool_calls": [],
+                "reasoning": "",
+                "done": True,
+            }
+            return
+
+        candidate_models = [self.model]
+        if self.provider == "9router":
+            for rm in PROVIDER_CATALOG["9router"]["fallback_models"]:
+                if rm not in candidate_models:
+                    candidate_models.append(rm)
+
+        last_error = ""
+
+        for current_model in candidate_models:
+            request_headers, payload, endpoint = self._build_request(
+                current_model, messages, tools, temperature
+            )
+            payload["stream"] = True
+
+            max_attempts = 2
+            for attempt in range(max_attempts):
+                try:
+                    async with httpx.AsyncClient(timeout=120.0) as client:
+                        async with client.stream(
+                            "POST", endpoint, headers=request_headers, json=payload
+                        ) as response:
+                            if response.status_code >= 400:
+                                try:
+                                    err_body = await response.aread()
+                                    err_body = json.loads(err_body)
+                                except Exception:
+                                    err_body = {"raw": "unknown error"}
+                                last_error = (
+                                    f"{current_model} -> HTTP {response.status_code}: "
+                                    f"{json.dumps(err_body)[:300]}"
+                                )
+                                if 400 <= response.status_code < 500 and response.status_code != 429:
+                                    break
+                                await asyncio.sleep(1.0)
+                                continue
+
+                            content_type = response.headers.get("content-type", "")
+                            buffer = ""
+
+                            async for chunk in response.aiter_text():
+                                buffer += chunk
+                                while "\n\n" in buffer:
+                                    line, buffer = buffer.split("\n\n", 1)
+                                    line = line.strip()
+                                    if not line.startswith("data:") or line == "data: [DONE]":
+                                        continue
+                                    json_str = line[5:].strip()
+                                    if not json_str:
+                                        continue
+                                    try:
+                                        data = json.loads(json_str)
+                                    except Exception:
+                                        continue
+
+                                    # OpenAI-style streaming delta
+                                    choices = data.get("choices")
+                                    if choices:
+                                        choice = choices[0]
+                                        delta = choice.get("delta", {}) or {}
+                                        content = delta.get("content")
+                                        reasoning_content = (
+                                            delta.get("reasoning_content")
+                                            or delta.get("reasoning")
+                                        )
+                                        tool_calls = delta.get("tool_calls")
+
+                                        yield {
+                                            "role": "assistant",
+                                            "content": content or "",
+                                            "reasoning": reasoning_content or "",
+                                            "tool_calls": tool_calls or [],
+                                            "done": choice.get("finish_reason") is not None,
+                                        }
+                                        if choice.get("finish_reason"):
+                                            return
+
+                                    # Anthropic event-stream format
+                                    ev_type = data.get("type")
+                                    if ev_type == "content_block_delta":
+                                        delta = data.get("delta", {}) or {}
+                                        if delta.get("type") == "text_delta":
+                                            yield {
+                                                "role": "assistant",
+                                                "content": delta.get("text", ""),
+                                                "reasoning": "",
+                                                "tool_calls": [],
+                                                "done": False,
+                                            }
+                                        elif delta.get("type") == "thinking_delta":
+                                            yield {
+                                                "role": "assistant",
+                                                "content": "",
+                                                "reasoning": delta.get("thinking", ""),
+                                                "tool_calls": [],
+                                                "done": False,
+                                            }
+                                    elif ev_type == "message_delta":
+                                        stop_reason = data.get("delta", {}).get("stop_reason")
+                                        if stop_reason:
+                                            yield {
+                                                "role": "assistant",
+                                                "content": "",
+                                                "reasoning": "",
+                                                "tool_calls": [],
+                                                "done": True,
+                                            }
+                                            return
+
+                            break
+                except Exception as e:
+                    last_error = f"{current_model} error: {e}"
+                    await asyncio.sleep(1.0)
+                    continue
+
+        yield {
+            "role": "assistant",
+            "content": f"LLM Request failed ({self.provider} - {self.model}): {last_error}",
+            "tool_calls": [],
+            "reasoning": "",
+            "done": True,
+        }
+
+    @staticmethod
+    def _convert_openai_tool_to_anthropic(tool: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert OpenAI-style function tool to Anthropic tool format.
+        Handles required fields, oneOf/anyOf by flattening to the first option.
+        """
+        fn = tool.get("function", {})
+        params = fn.get("parameters", {"type": "object", "properties": {}})
+
+        def _clean_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+            """Recursively clean schema: handle oneOf/anyOf, ensure required is list."""
+            if not isinstance(schema, dict):
+                return schema
+
+            # Handle oneOf/anyOf by taking the first option (Anthropic doesn't support unions)
+            for union_key in ("oneOf", "anyOf"):
+                if union_key in schema and isinstance(schema[union_key], list) and schema[union_key]:
+                    first = schema[union_key][0]
+                    if isinstance(first, dict):
+                        # Merge first option into parent, preserving other keys
+                        merged = {k: v for k, v in schema.items() if k not in ("oneOf", "anyOf")}
+                        merged.update(first)
+                        return _clean_schema(merged)
+
+            # Recursively clean properties
+            if "properties" in schema and isinstance(schema["properties"], dict):
+                cleaned_props = {}
+                for prop_name, prop_schema in schema["properties"].items():
+                    cleaned_props[prop_name] = _clean_schema(prop_schema)
+                schema = {**schema, "properties": cleaned_props}
+
+            # Ensure required is a list
+            if "required" in schema and not isinstance(schema["required"], list):
+                schema = {**schema, "required": []}
+
+            # Recursively clean items for arrays
+            if "items" in schema:
+                schema = {**schema, "items": _clean_schema(schema["items"])}
+
+            return schema
+
+        cleaned_params = _clean_schema(params)
+
+        return {
+            "name": fn.get("name", ""),
+            "description": fn.get("description", ""),
+            "input_schema": cleaned_params,
+        }
+
+    # ---------------------------------------------------------------------
     # Per-provider request builder
     # ---------------------------------------------------------------------
     def _build_request(
@@ -502,11 +740,7 @@ class UnifiedLLMClient:
             if tools:
                 # Convert OpenAI-style tool defs to Anthropic tool defs.
                 payload["tools"] = [
-                    {
-                        "name": t["function"]["name"],
-                        "description": t["function"].get("description", ""),
-                        "input_schema": t["function"].get("parameters", {"type": "object", "properties": {}}),
-                    }
+                    self._convert_openai_tool_to_anthropic(t)
                     for t in tools
                     if t.get("type") == "function"
                 ]
@@ -659,7 +893,9 @@ class UnifiedLLMClient:
         candidates = [f"{base}/models"]
         # 9Router: also try common host aliases so docker / windows / linux all work.
         if _normalize_provider(provider_id) == "9router":
+            docker_host = _detect_docker_host()
             candidates = [
+                f"http://{docker_host}:20128/v1/models",
                 "http://127.0.0.1:20128/v1/models",
                 "http://localhost:20128/v1/models",
                 "http://host.docker.internal:20128/v1/models",
@@ -669,7 +905,11 @@ class UnifiedLLMClient:
                 candidates.insert(0, f"{os.getenv('NINEROUTER_BASE_URL').rstrip('/')}/models")
         # Ollama has a custom /api/tags endpoint; translate to OpenAI-style list.
         if _normalize_provider(provider_id) == "ollama":
-            candidates = [f"{base.rstrip('/v1') if base.endswith('/v1') else base}/api/tags"]
+            docker_host = _detect_docker_host()
+            candidates = [
+                f"http://{docker_host}:11434/api/tags",
+                f"{base.rstrip('/v1') if base.endswith('/v1') else base}/api/tags",
+            ]
 
         timeout = httpx.Timeout(5.0, connect=3.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
