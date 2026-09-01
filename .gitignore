@@ -1,8 +1,18 @@
-```
-# Coverage reports
-.coverage
+# ---------------------------------------------------------------------------
+# Secrets & environment — must NEVER be committed
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.env
+!.env.example
+backend/.env
+frontend/.env.local
+frontend/.env.production.local
+frontend/.env.development.local
 
+# ---------------------------------------------------------------------------
 # Python
+# ---------------------------------------------------------------------------
 __pycache__/
 *.pyc
 *.pyo
@@ -14,16 +24,53 @@ venv/
 pip-log.txt
 pip-delete-this-directory.txt
 .tox/
-.coverage
-.coverage.*
 .cache
 nosetests.xml
 coverage.xml
 *.cover
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------
+# Node / Next.js
+# ---------------------------------------------------------------------------
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---------------------------------------------------------------------------
+# Logs / temp / OS
+# ---------------------------------------------------------------------------
 *.log
 *.tmp
 *.swp
 *~
 .DS_Store
 Thumbs.db
-```
+
+# ---------------------------------------------------------------------------
+# Test / coverage artifacts
+# ---------------------------------------------------------------------------
+.coverage
+.coverage.*
+htmlcov/
+junit*.xml
+
+# ---------------------------------------------------------------------------
+# Project-specific runtime output
+# ---------------------------------------------------------------------------
+workspace/
+backend/test_workspace/
+!backend/test_workspace/.gitkeep
+*.pid
+
+# IDE
+.vscode/
+.idea/
+*.swp

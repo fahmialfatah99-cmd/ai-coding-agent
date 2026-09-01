@@ -18,6 +18,7 @@ import {
   fetchModels,
   executeSandboxCommand,
   streamAgentTask,
+  syncProviderModels,
   FileNode,
   ModelProvider,
   AgentSSEEvent,
@@ -46,6 +47,7 @@ export default function Home() {
   const [selectedProvider, setSelectedProvider] = useState<string>("9router");
   const [selectedModel, setSelectedModel] = useState<string>("ag/gemini-3.7-flash-high");
   const [apiKey, setApiKey] = useState<string>("sk-3b791e4140c2fd0c-s2g2dt-fe07f69f");
+  const [baseUrl, setBaseUrl] = useState<string>("");
 
   // Chat & Terminal State with Persistence
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -85,6 +87,16 @@ export default function Home() {
       setSelectedModel(savedModel);
     } else {
       setSelectedModel("ag/gemini-3.7-flash-high");
+    }
+
+    const savedBaseUrl = localStorage.getItem("ai_agent_base_url");
+    if (savedBaseUrl) {
+      setBaseUrl(savedBaseUrl);
+    }
+
+    const savedProviderId = localStorage.getItem("ai_agent_provider");
+    if (savedProviderId) {
+      setSelectedProvider(savedProviderId);
     }
 
     const savedMessages = localStorage.getItem("ai_agent_messages");
@@ -141,6 +153,33 @@ export default function Home() {
       if (activeP.models.length > 0 && !activeP.models.includes(selectedModel)) {
         setSelectedModel(activeP.models[0]);
       }
+    }
+  };
+
+  // Generic refresh: re-sync the currently-selected provider's model list live.
+  const handleRefreshModels = async () => {
+    const result = await syncProviderModels({
+      provider: selectedProvider,
+      api_key: apiKey || undefined,
+      base_url: baseUrl || undefined,
+    });
+    if (result && result.models && result.models.length > 0) {
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === selectedProvider
+            ? {
+                ...p,
+                models: result.models.includes(p.default_model)
+                  ? result.models
+                  : [p.default_model, ...result.models],
+                default_model: p.default_model,
+              }
+            : p
+        )
+      );
+    } else {
+      // Fallback: re-pull the whole catalog.
+      await refreshModelsList(apiKey);
     }
   };
 
@@ -250,6 +289,7 @@ export default function Home() {
           provider: selectedProvider,
           model: selectedModel,
           api_key: apiKey || undefined,
+          base_url: baseUrl || undefined,
         },
         (event: AgentSSEEvent) => {
           setMessages((prev) =>
@@ -742,6 +782,11 @@ export default function Home() {
               localStorage.setItem("ai_agent_api_key", key);
               refreshModelsList(key);
             }}
+            baseUrl={baseUrl}
+            onBaseUrlChange={(url) => {
+              setBaseUrl(url);
+              localStorage.setItem("ai_agent_base_url", url);
+            }}
             mode={executionMode}
             onModeChange={(m) => {
               setExecutionMode(m);
@@ -751,7 +796,7 @@ export default function Home() {
             isStreaming={isStreaming}
             onSendMessage={handleSendMessage}
             onReviewDiff={handleReviewDiff}
-            onRefreshModels={() => refreshModelsList(apiKey)}
+            onRefreshModels={handleRefreshModels}
             activeFile={activeFile}
             onClearActiveFile={() => {
               setActiveFile("");

@@ -13,6 +13,22 @@ export interface ModelProvider {
   name: string;
   models: string[];
   default_model: string;
+  description?: string;
+  requires_api_key?: boolean;
+  api_style?: "openai" | "anthropic";
+}
+
+export interface SyncProviderParams {
+  provider: string;
+  api_key?: string;
+  base_url?: string;
+}
+
+export interface SyncProviderResponse {
+  status: string;
+  provider: string;
+  total_models: number;
+  models: string[];
 }
 
 export interface AgentSSEEvent {
@@ -53,6 +69,26 @@ export async function sync9RouterModels(apiKey?: string): Promise<string[]> {
   } catch (err) {
     console.error("Failed to sync 9router models", err);
     return [];
+  }
+}
+
+/**
+ * Generic provider sync — works for every provider in the catalog
+ * (9Router, OpenAI, Gemini, Anthropic, Ollama, Groq, Mistral, Cohere,
+ * Together, DeepSeek, OpenRouter).
+ */
+export async function syncProviderModels(params: SyncProviderParams): Promise<SyncProviderResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/models/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error(`Failed to sync models for ${params.provider}`, err);
+    return null;
   }
 }
 
@@ -121,6 +157,8 @@ export async function streamAgentTask(
     model?: string;
     api_key?: string;
     base_url?: string;
+    max_iterations?: number;
+    max_audit_cycles?: number;
   },
   onEvent: (event: AgentSSEEvent) => void,
   signal?: AbortSignal

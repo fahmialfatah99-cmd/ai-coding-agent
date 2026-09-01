@@ -6,9 +6,19 @@
 
 ## 🌟 Fitur Unggulan
 
-- **9Router AI Gateway & Multi-Provider LLM**: 
-  - Auto-deteksi real-time seluruh model & combo kustom dari 9Router (`http://localhost:20128/v1`), Claude 3.7 Sonnet / Opus Thinking, Gemini 3.7 Flash, DeepSeek V4 Pro, OpenAI GPT-4o, dan Ollama Local.
-  - Sinkronisasi dinamis 32+ combo dengan 1 tombol di UI (🔄).
+- **Multi-Provider LLM (11 providers, 200+ models)**:
+  - **9Router** (local AI Gateway) — auto-detect live combos dari `http://localhost:20128/v1`.
+  - **OpenAI** — GPT-4o, GPT-4.1, GPT-5, o1/o3/o4 reasoning.
+  - **Google Gemini** — 2.5 Pro/Flash, 2.0 Flash, 1.5 Pro (via OpenAI-compatible endpoint).
+  - **Anthropic Claude** — Opus 4.1/4, Sonnet 4.5/4, 3.7/3.5 (native API + extended thinking).
+  - **Ollama (Local)** — Llama 3.3, Qwen 2.5, DeepSeek R1, Mistral, Gemma 3, Phi 3.
+  - **Groq** — Llama 3.3 70B, Mixtral, DeepSeek R1 distill, Qwen 2.5 (ultra-fast LPU).
+  - **Mistral AI** — Large, Medium, Small, Codestral, Pixtral.
+  - **Cohere** — Command R+, R, Aya Expanse.
+  - **Together AI** — Llama 3.3 70B, Qwen 2.5 Coder, DeepSeek R1/V3.
+  - **DeepSeek** — V3 (chat) + R1 (reasoner).
+  - **OpenRouter** — 100+ models dari semua provider via 1 API key.
+  - Auto-fetch `/v1/models` live per provider + hardcoded fallback catalog.
 - **Arsitektur 9 Router Modular**:
   - `/agent`: ReAct autonomous loop & SSE streaming.
   - `/workspaces`: Manajemen multi-project & isolasi root.
@@ -111,7 +121,19 @@ cd ai-coding-agent
 # 2. Salin dan konfigurasikan file .env (opsional jika sudah ada default)
 cp .env.example .env
 
-# 3. Jalankan semua container di background
+# 3. (Opsional) Tambahkan API key untuk provider lain
+#    Edit .env dan tambahkan salah satu/lebih:
+#    OPENAI_API_KEY=sk-...
+#    ANTHROPIC_API_KEY=sk-ant-...
+#    GEMINI_API_KEY=AIzaSy...
+#    GROQ_API_KEY=gsk_...
+#    MISTRAL_API_KEY=...
+#    COHERE_API_KEY=...
+#    TOGETHER_API_KEY=...
+#    DEEPSEEK_API_KEY=...
+#    OPENROUTER_API_KEY=sk-or-...
+
+# 4. Jalankan semua container di background
 docker compose up -d --build
 ```
 
@@ -197,7 +219,7 @@ npm run dev
 
 ## 🧪 Menjalankan Automated Verification Suite
 
-Uji seluruh komponen (Tree-sitter AST, Docker Sandbox, LLM SSE Parser, ReAct Loop, dan 9 Router Endpoints):
+Uji seluruh komponen (Tree-sitter AST, Docker Sandbox, Multi-Provider LLM Adapter, Anthropic & OpenAI request shapes, SSE parser, ReAct Loop, dan 9 Router Endpoints):
 
 ```bash
 cd backend
@@ -210,9 +232,17 @@ Output yang diharapkan:
 [-] AST Parser Python test passed.
 [-] AST Parser JavaScript test passed.
 [-] Sandbox execution test passed.
-[-] LLM Adapter multi-provider definition test passed.
+[-] LLM Adapter catalog test passed (11 providers).
+[-] Provider normalization aliases test passed.
+[-] Per-provider API key resolution test passed.
+[-] UnifiedLLMClient construction for every provider test passed.
+[-] Anthropic request shape test passed.
+[-] OpenAI request shape test passed.
+[-] OpenRouter custom headers test passed.
+[-] SSE parser (OpenAI + Anthropic) test passed.
+[-] Missing-API-key error path test passed.
 [-] Orchestrator tools and diff patching test passed.
-[-] All 9 Modular Router endpoints tested and PASSED successfully.
+[-] All 9 Modular Router endpoints tested and PASSED successfully (11 providers exposed).
 
 => ALL 9-ROUTER SUITE TESTS PASSED 100% SUCCESSFULLY!
 ```

@@ -57,6 +57,8 @@ interface ChatPanelProps {
   onModelChange: (model: string) => void;
   apiKey: string;
   onApiKeyChange: (key: string) => void;
+  baseUrl?: string;
+  onBaseUrlChange?: (url: string) => void;
   mode?: "solo" | "team";
   onModeChange?: (mode: "solo" | "team") => void;
   messages: ChatMessage[];
@@ -78,6 +80,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onModelChange,
   apiKey,
   onApiKeyChange,
+  baseUrl = "",
+  onBaseUrlChange,
   mode = "team",
   onModeChange,
   messages,
@@ -154,7 +158,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <button
               onClick={onRefreshModels}
               className="p-1 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 rounded transition"
-              title="Auto-Detect & Sync 9Router Combos/Models"
+              title={`Auto-Detect & Sync live models for ${activeProviderObj?.name || selectedProvider}`}
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -290,18 +294,47 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       {/* Settings / API Key Popdown */}
       {showSettings && (
         <div className="p-3 bg-neutral-900 border-b border-neutral-800 text-xs flex flex-col gap-2 animate-fadeIn">
-          <label className="text-neutral-400 font-medium">
-            API Key for {activeProviderObj?.name || selectedProvider}:
+          {activeProviderObj?.description && (
+            <div className="text-[10px] text-neutral-500 italic leading-snug">
+              {activeProviderObj.description}
+            </div>
+          )}
+          <label className="text-neutral-400 font-medium flex items-center justify-between">
+            <span>API Key for {activeProviderObj?.name || selectedProvider}:</span>
+            {activeProviderObj?.requires_api_key === false && (
+              <span className="text-[9px] text-emerald-400 bg-emerald-950/40 border border-emerald-700/40 rounded px-1.5 py-0.5">
+                No key required
+              </span>
+            )}
           </label>
           <input
             type="password"
-            placeholder="sk-... / AIzaSy..."
+            placeholder={
+              activeProviderObj?.requires_api_key === false
+                ? "(optional for this provider)"
+                : "sk-... / AIzaSy... / sk-ant-..."
+            }
             value={apiKey}
             onChange={(e) => onApiKeyChange(e.target.value)}
-            className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-accent"
+            disabled={activeProviderObj?.requires_api_key === false}
+            className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
           />
+          {onBaseUrlChange && (
+            <>
+              <label className="text-neutral-400 font-medium mt-1">
+                Base URL (override, optional):
+              </label>
+              <input
+                type="text"
+                placeholder="https://api.openai.com/v1"
+                value={baseUrl}
+                onChange={(e) => onBaseUrlChange(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-accent"
+              />
+            </>
+          )}
           <span className="text-[10px] text-neutral-500">
-            Stored locally in browser session memory.
+            Stored locally in browser session memory. Switch provider above to see compatible defaults.
           </span>
         </div>
       )}
