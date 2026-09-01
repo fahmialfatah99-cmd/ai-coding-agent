@@ -72,6 +72,7 @@ interface ChatPanelProps {
   activeFile?: string;
   onClearActiveFile?: () => void;
   onClearChat?: () => void;
+  onOpenApiKeyModal?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -95,6 +96,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   activeFile,
   onClearActiveFile,
   onClearChat,
+  onOpenApiKeyModal,
 }) => {
   const [inputPrompt, setInputPrompt] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -121,41 +123,34 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-[#181818] border-l border-neutral-800 text-neutral-200">
-      {/* Top Header Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#141414] border-b border-neutral-800">
+      {/* Top Header Toolbar: Row 1 (Title & Actions) */}
+      <div className="flex items-center justify-between px-3.5 py-2 bg-[#141414] border-b border-neutral-800">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-purple-400" />
-          <span className="font-semibold text-xs tracking-wide">AI ASSISTANT</span>
+          <span className="font-bold text-xs tracking-wider text-neutral-200">AI ASSISTANT</span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Provider / Model Selector */}
-          <select
-            value={selectedProvider}
-            onChange={(e) => onProviderChange(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-accent max-w-[110px]"
+          {/* Prominent API Key Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenApiKeyModal) {
+                onOpenApiKeyModal();
+              } else {
+                setShowSettings(!showSettings);
+              }
+            }}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition cursor-pointer border ${
+              apiKey
+                ? "bg-emerald-950/40 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/50"
+                : "bg-amber-950/40 border-amber-700/50 text-amber-300 hover:bg-amber-900/50"
+            }`}
+            title="Configure API Key & Model Settings"
           >
-            {(providers || []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedModel}
-            onChange={(e) => onModelChange(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-accent max-w-[130px]"
-          >
-            {(activeProviderObj?.models && activeProviderObj.models.length > 0
-              ? activeProviderObj.models
-              : [selectedModel || "ag/gemini-3.7-flash-high"]
-            ).map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+            <Key className="w-3.5 h-3.5" />
+            <span className="text-[11px]">{apiKey ? "Key Active" : "Set API Key"}</span>
+          </button>
 
           {onRefreshModels && (
             <button
@@ -167,19 +162,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </button>
           )}
 
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`relative p-1 rounded transition ${
-              showSettings ? "bg-accent text-white" : "text-neutral-400 hover:bg-neutral-800"
-            }`}
-            title={`Configure API Key for ${activeProviderObj?.name || selectedProvider}`}
-          >
-            <Key className="w-3.5 h-3.5" />
-            {apiKey && (
-              <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            )}
-          </button>
-
           {onClearChat && (
             <button
               onClick={onClearChat}
@@ -190,6 +172,38 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Top Header Toolbar: Row 2 (Provider & Model Dropdowns) */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#161616] border-b border-neutral-800 text-xs">
+        <select
+          value={selectedProvider}
+          onChange={(e) => onProviderChange(e.target.value)}
+          className="bg-neutral-900 border border-neutral-700 text-neutral-200 text-[11px] rounded px-2 py-1 focus:outline-none focus:border-accent w-5/12 truncate font-medium cursor-pointer"
+          title="Select AI Provider"
+        >
+          {(providers || []).map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedModel}
+          onChange={(e) => onModelChange(e.target.value)}
+          className="bg-neutral-900 border border-neutral-700 text-neutral-200 text-[11px] rounded px-2 py-1 focus:outline-none focus:border-accent flex-1 truncate font-mono cursor-pointer"
+          title="Select AI Model"
+        >
+          {(activeProviderObj?.models && activeProviderObj.models.length > 0
+            ? activeProviderObj.models
+            : [selectedModel || "ag/gemini-3.7-flash-high"]
+          ).map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Multi-Agent Mode Switcher Bar */}
