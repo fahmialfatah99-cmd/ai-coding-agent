@@ -27,13 +27,16 @@ class SyncProviderRequest(BaseModel):
 
 
 @router.get("", response_model=Dict[str, List[ProviderInfo]])
-async def list_models(api_key: Optional[str] = Query(None)):
+async def list_models(
+    api_key: Optional[str] = Query(None),
+    base_url: Optional[str] = Query(None),
+):
     """
     Returns the full provider catalog (9Router, OpenAI, Gemini, Anthropic, Ollama,
     Groq, Mistral, Cohere, Together, DeepSeek, OpenRouter) with auto-discovered
     models when reachable.
     """
-    providers = await UnifiedLLMClient.get_supported_providers_async(api_key=api_key)
+    providers = await UnifiedLLMClient.get_supported_providers_async(api_key=api_key, base_url=base_url)
     return {"providers": providers}
 
 
@@ -53,9 +56,12 @@ async def get_active_model_defaults():
 # Legacy endpoint kept for backwards compatibility (returns 9Router combo list).
 # ---------------------------------------------------------------------------
 @router.get("/sync-9router")
-async def sync_9router(api_key: Optional[str] = Query(None)):
+async def sync_9router(
+    api_key: Optional[str] = Query(None),
+    base_url: Optional[str] = Query(None),
+):
     """Forces real-time re-sync with the local/remote 9Router instance."""
-    models = await UnifiedLLMClient.fetch_dynamic_9router_models(api_key=api_key)
+    models = await UnifiedLLMClient.fetch_dynamic_9router_models(api_key=api_key, base_url=base_url)
     return {
         "status": "synchronized",
         "provider": "9router",

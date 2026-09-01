@@ -399,10 +399,13 @@ class UnifiedLLMClient:
         # Build candidate list: prefer self.model, then a handful of reliable fallbacks
         # so a transient failure on the primary model still returns an answer.
         candidate_models = [self.model]
-        if self.provider == "9router":
-            for rm in PROVIDER_CATALOG["9router"]["fallback_models"]:
-                if rm not in candidate_models:
-                    candidate_models.append(rm)
+        if self.provider == "9router" and self.model == "all":
+            candidate_models = [
+                "ag/gemini-2.5-flash",
+                "ag/claude-sonnet-4-6",
+                "ag/claude-opus-4-6-thinking",
+                "openai/gpt-4o",
+            ]
 
         last_error = ""
 
@@ -541,10 +544,13 @@ class UnifiedLLMClient:
             return
 
         candidate_models = [self.model]
-        if self.provider == "9router":
-            for rm in PROVIDER_CATALOG["9router"]["fallback_models"]:
-                if rm not in candidate_models:
-                    candidate_models.append(rm)
+        if self.provider == "9router" and self.model == "all":
+            candidate_models = [
+                "ag/gemini-2.5-flash",
+                "ag/claude-sonnet-4-6",
+                "ag/claude-opus-4-6-thinking",
+                "openai/gpt-4o",
+            ]
 
         last_error = ""
 
@@ -894,24 +900,42 @@ class UnifiedLLMClient:
         # 9Router: also try common host aliases so docker / windows / linux all work.
         if _normalize_provider(provider_id) == "9router":
             docker_host = _detect_docker_host()
-            candidates = [
+            candidate_list = []
+            if base_url:
+                candidate_list.append(f"{base_url.rstrip('/')}/models")
+            if os.getenv("NINEROUTER_BASE_URL"):
+                candidate_list.append(f"{os.getenv('NINEROUTER_BASE_URL').rstrip('/')}/models")
+            candidate_list.extend([
+                f"{base}/models",
                 f"http://{docker_host}:20128/v1/models",
                 "http://127.0.0.1:20128/v1/models",
                 "http://localhost:20128/v1/models",
                 "http://host.docker.internal:20128/v1/models",
-                f"{base}/models",
-            ]
-            if os.getenv("NINEROUTER_BASE_URL"):
-                candidates.insert(0, f"{os.getenv('NINEROUTER_BASE_URL').rstrip('/')}/models")
+            ])
+            seen = set()
+            candidates = []
+            for c in candidate_list:
+                if c not in seen:
+                    seen.add(c)
+                    candidates.append(c)
         # Ollama has a custom /api/tags endpoint; translate to OpenAI-style list.
         if _normalize_provider(provider_id) == "ollama":
             docker_host = _detect_docker_host()
             candidates = [
-                f"http://{docker_host}:11434/api/tags",
                 f"{base.rstrip('/v1') if base.endswith('/v1') else base}/api/tags",
+                f"http://{docker_host}:11434/api/tags",
+                "http://127.0.0.1:11434/api/tags",
+                "http://localhost:11434/api/tags",
             ]
+            seen = set()
+            deduped = []
+            for c in candidates:
+                if c not in seen:
+                    seen.add(c)
+                    deduped.append(c)
+            candidates = deduped
 
-        timeout = httpx.Timeout(5.0, connect=3.0)
+        timeout = httpx.Timeout(1.5, connect=1.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
             for url in candidates:
                 try:
@@ -951,36 +975,44 @@ class UnifiedLLMClient:
         return list(cfg.get("fallback_models", []))
 
     @classmethod
-    async def fetch_dynamic_9router_models(cls, api_key: Optional[str] = None) -> List[str]:
+    async def fetch_dynamic_9router_models(
+        cls, api_key: Optional[str] = None, base_url: Optional[str] = None
+    ) -> List[str]:
         """Backward-compatible alias used by the old /models/sync-9router endpoint."""
-        return await cls.fetch_dynamic_models("9router", api_key=api_key)
+        return await cls.fetch_dynamic_models("9router", api_key=api_key, base_url=base_url)
 
     @classmethod
     async def get_supported_providers_async(
-        cls, api_key: Optional[str] = None
+        cls, api_key: Optional[str] = None, base_url: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Returns the full provider catalog, with live model discovery for each provider
-        (so the UI shows up-to-date model lists when a key is supplied).
+        in parallel (so the UI shows up-to-date model lists fast).
         """
-        providers: List[Dict[str, Any]] = []
-        for pid, cfg in PROVIDER_CATALOG.items():
-            models = await cls.fetch_dynamic_models(pid, api_key=api_key)
-            # Ensure the default model is always present in the list.
+        async def _fetch_one(pid: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
+            try:
+                p_key = api_key if pid in ("9router", "openai", "openrouter") else None
+                p_base = base_url if pid == "9router" else None
+                models = await cls.fetch_dynamic_models(pid, api_key=p_key, base_url=p_base)
+            except Exception:
+                models = []
+            if not models:
+                models = list(cfg.get("fallback_models", []))
             if cfg["default_model"] not in models:
                 models = [cfg["default_model"]] + models
-            providers.append(
-                {
-                    "id": pid,
-                    "name": cfg["name"],
-                    "models": models,
-                    "default_model": cfg["default_model"],
-                    "description": cfg.get("description", ""),
-                    "requires_api_key": cfg.get("requires_api_key", True),
-                    "api_style": cfg.get("api_style", "openai"),
-                }
-            )
-        return providers
+            return {
+                "id": pid,
+                "name": cfg["name"],
+                "models": models,
+                "default_model": cfg["default_model"],
+                "description": cfg.get("description", ""),
+                "requires_api_key": cfg.get("requires_api_key", True),
+                "api_style": cfg.get("api_style", "openai"),
+            }
+
+        tasks = [_fetch_one(pid, cfg) for pid, cfg in PROVIDER_CATALOG.items()]
+        providers = await asyncio.gather(*tasks)
+        return list(providers)
 
     @staticmethod
     def get_supported_providers() -> List[Dict[str, Any]]:

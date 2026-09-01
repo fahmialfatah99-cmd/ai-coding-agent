@@ -54,12 +54,21 @@ class AgentOrchestrator:
         # Role-specific model overrides for the team swarm. Each entry can set
         # provider/model/api_key/base_url. Missing keys fall back to llm_client.
         # Supported roles: "architect", "builder", "auditor".
-        # Default: architect=strong model (opus/gpt-5), builder=balanced (sonnet/gpt-4o), auditor=cheap (haiku/mini).
-        default_role_models = {
-            "architect": {"model": "ag/claude-opus-4-6-thinking"},
-            "builder": {"model": "ag/claude-sonnet-4-6"},
-            "auditor": {"model": "ag/gemini-2.5-flash"},
-        }
+        # Default: For 9Router with ag/ models or 'all', use balanced ag/ combo defaults.
+        # For external providers (OpenAI, Gemini, Anthropic, Ollama, etc.), default to user selected model.
+        default_role_models: Dict[str, Dict[str, Any]] = {}
+        if self.llm_client.provider == "9router" and (not model or model == "all" or str(model).startswith("ag/")):
+            default_role_models = {
+                "architect": {"model": "ag/claude-opus-4-6-thinking"},
+                "builder": {"model": "ag/claude-sonnet-4-6"},
+                "auditor": {"model": "ag/gemini-2.5-flash"},
+            }
+        else:
+            default_role_models = {
+                "architect": {"model": self.llm_client.model},
+                "builder": {"model": self.llm_client.model},
+                "auditor": {"model": self.llm_client.model},
+            }
         if role_models:
             for role, spec in role_models.items():
                 if role in default_role_models:
