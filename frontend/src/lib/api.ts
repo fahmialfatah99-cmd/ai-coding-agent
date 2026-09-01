@@ -46,16 +46,214 @@ export interface AgentSSEEvent {
   diff?: string;
 }
 
-export async function fetchModels(apiKey?: string): Promise<ModelProvider[]> {
+export const DEFAULT_PROVIDERS: ModelProvider[] = [
+  {
+    id: "9router",
+    name: "9Router (Auto-Detect Combos)",
+    default_model: "ag/gemini-2.5-flash",
+    models: [
+      "all",
+      "ag/gemini-2.5-pro",
+      "ag/gemini-2.5-flash",
+      "ag/gemini-2.5-flash-lite",
+      "ag/gemini-2.0-flash",
+      "ag/gemini-3.7-flash-high",
+      "ag/claude-opus-4-1",
+      "ag/claude-sonnet-4-5",
+      "ag/claude-sonnet-4-6",
+      "ag/claude-opus-4-6-thinking",
+      "ag/claude-3-7-sonnet",
+      "ag/claude-3-5-sonnet",
+      "ag/claude-3-5-haiku",
+      "gemini/gemini-2.5-pro",
+      "gemini/gemini-2.5-flash",
+      "nvidia/deepseek-ai/deepseek-v3",
+      "nvidia/deepseek-ai/deepseek-r1",
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini",
+      "openai/gpt-5",
+      "openai/o1",
+      "openai/o3-mini",
+    ],
+    requires_api_key: false,
+    description: "Local AI Gateway with auto-detected combos (Claude, Gemini, DeepSeek, GPT, Ollama).",
+    api_style: "openai",
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    default_model: "gpt-4o",
+    models: [
+      "gpt-4o",
+      "gpt-4o-mini",
+      "gpt-4-turbo",
+      "gpt-4.1",
+      "gpt-4.1-mini",
+      "gpt-5",
+      "o1",
+      "o1-mini",
+      "o3-mini",
+    ],
+    requires_api_key: true,
+    description: "OpenAI GPT-4o, GPT-5, o1/o3 reasoning models.",
+    api_style: "openai",
+  },
+  {
+    id: "gemini",
+    name: "Google Gemini",
+    default_model: "gemini-2.0-flash",
+    models: [
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+      "gemini-1.5-pro",
+      "gemini-1.5-flash",
+    ],
+    requires_api_key: true,
+    description: "Google Gemini 2.5 / 2.0 / 1.5 family via OpenAI-compatible endpoint.",
+    api_style: "openai",
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic Claude",
+    default_model: "claude-3-7-sonnet-latest",
+    models: [
+      "claude-opus-4-1-20250805",
+      "claude-sonnet-4-5-20250929",
+      "claude-3-7-sonnet-latest",
+      "claude-3-5-sonnet-latest",
+      "claude-3-5-haiku-latest",
+    ],
+    requires_api_key: true,
+    description: "Anthropic Claude 4.x / 3.x with native API + extended thinking.",
+    api_style: "anthropic",
+  },
+  {
+    id: "ollama",
+    name: "Ollama (Local)",
+    default_model: "deepseek-r1:latest",
+    models: [
+      "llama3.3:latest",
+      "llama3.2:latest",
+      "llama3.1:70b",
+      "qwen2.5-coder:32b",
+      "qwen2.5:72b",
+      "deepseek-r1:latest",
+      "deepseek-coder-v2:latest",
+      "codellama:34b",
+      "mistral:latest",
+    ],
+    requires_api_key: false,
+    description: "Ollama local models (Llama, Qwen, DeepSeek, Mistral, Gemma, Phi).",
+    api_style: "openai",
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    default_model: "llama-3.3-70b-versatile",
+    models: [
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
+      "llama-3.2-90b-vision-preview",
+      "mixtral-8x7b-32768",
+      "deepseek-r1-distill-llama-70b",
+      "qwen-2.5-32b",
+    ],
+    requires_api_key: true,
+    description: "Groq ultra-fast inference (LPU) for Llama, Mixtral, Gemma, Qwen, DeepSeek.",
+    api_style: "openai",
+  },
+  {
+    id: "mistral",
+    name: "Mistral AI",
+    default_model: "mistral-large-latest",
+    models: [
+      "mistral-large-latest",
+      "mistral-medium-latest",
+      "mistral-small-latest",
+      "codestral-latest",
+      "pixtral-large-latest",
+    ],
+    requires_api_key: true,
+    description: "Mistral Large, Medium, Small, Codestral, Pixtral — all OpenAI-compatible.",
+    api_style: "openai",
+  },
+  {
+    id: "cohere",
+    name: "Cohere",
+    default_model: "command-r-plus",
+    models: [
+      "command-r-plus",
+      "command-r",
+      "command",
+      "c4ai-aya-expanse-32b",
+    ],
+    requires_api_key: true,
+    description: "Cohere Command R+ / R / Aya Expanse via OpenAI-compatible endpoint.",
+    api_style: "openai",
+  },
+  {
+    id: "together",
+    name: "Together AI",
+    default_model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    models: [
+      "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+      "Qwen/Qwen2.5-Coder-32B-Instruct",
+      "deepseek-ai/DeepSeek-R1",
+      "deepseek-ai/DeepSeek-V3",
+    ],
+    requires_api_key: true,
+    description: "Together AI — open models (Llama, Qwen, DeepSeek, Mixtral, Gemma) at low cost.",
+    api_style: "openai",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    default_model: "deepseek-chat",
+    models: [
+      "deepseek-chat",
+      "deepseek-reasoner",
+      "deepseek-coder",
+    ],
+    requires_api_key: true,
+    description: "DeepSeek V3 (chat) and R1 (reasoner) — OpenAI-compatible API.",
+    api_style: "openai",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter (All Models)",
+    default_model: "anthropic/claude-3.7-sonnet",
+    models: [
+      "anthropic/claude-3.7-sonnet",
+      "anthropic/claude-3.5-sonnet",
+      "openai/gpt-4o",
+      "google/gemini-2.5-pro",
+      "meta-llama/llama-3.3-70b-instruct",
+      "deepseek/deepseek-r1",
+    ],
+    requires_api_key: true,
+    description: "OpenRouter — 100+ models from all major providers through one API key.",
+    api_style: "openai",
+  },
+];
+
+export async function fetchModels(apiKey?: string, baseUrl?: string): Promise<ModelProvider[]> {
   try {
-    const url = apiKey ? `${API_BASE}/models?api_key=${encodeURIComponent(apiKey)}` : `${API_BASE}/models`;
+    const params = new URLSearchParams();
+    if (apiKey) params.set("api_key", apiKey);
+    if (baseUrl) params.set("base_url", baseUrl);
+    const queryString = params.toString();
+    const url = queryString ? `${API_BASE}/models?${queryString}` : `${API_BASE}/models`;
     const res = await fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) return DEFAULT_PROVIDERS;
     const data = await res.json();
-    return data.providers || [];
+    return data.providers && data.providers.length > 0 ? data.providers : DEFAULT_PROVIDERS;
   } catch (err) {
-    console.error("Failed to fetch models", err);
-    return [];
+    console.error("Failed to fetch models, using fallback providers", err);
+    return DEFAULT_PROVIDERS;
   }
 }
 

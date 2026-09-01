@@ -22,6 +22,7 @@ import {
   FileNode,
   ModelProvider,
   AgentSSEEvent,
+  DEFAULT_PROVIDERS,
 } from "@/lib/api";
 import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain, ChevronDown, FolderCheck, Sparkles, Github } from "lucide-react";
 import { GitHubModal } from "@/components/github/GitHubModal";
@@ -43,7 +44,7 @@ export default function Home() {
   const [diffFilePath, setDiffFilePath] = useState<string>("");
 
   // LLM State with Persistence
-  const [providers, setProviders] = useState<ModelProvider[]>([]);
+  const [providers, setProviders] = useState<ModelProvider[]>(DEFAULT_PROVIDERS);
   const [selectedProvider, setSelectedProvider] = useState<string>("9router");
   const [selectedModel, setSelectedModel] = useState<string>("ag/gemini-3.7-flash-high");
   const [apiKey, setApiKey] = useState<string>("sk-3b791e4140c2fd0c-s2g2dt-fe07f69f");
@@ -65,15 +66,20 @@ export default function Home() {
     // Restore Saved Settings
     const default9RouterKey = "sk-3b791e4140c2fd0c-s2g2dt-fe07f69f";
     const savedKey = localStorage.getItem("ai_agent_api_key");
-    if (savedKey && savedKey.startsWith("sk-")) {
+    if (savedKey) {
       setApiKey(savedKey);
     } else {
       setApiKey(default9RouterKey);
       localStorage.setItem("ai_agent_api_key", default9RouterKey);
     }
 
-    setSelectedProvider("9router");
-    localStorage.setItem("ai_agent_provider", "9router");
+    const savedProviderId = localStorage.getItem("ai_agent_provider");
+    if (savedProviderId) {
+      setSelectedProvider(savedProviderId);
+    } else {
+      setSelectedProvider("9router");
+      localStorage.setItem("ai_agent_provider", "9router");
+    }
 
     const savedMode = localStorage.getItem("ai_agent_execution_mode") as "solo" | "team" | null;
     if (savedMode) {
@@ -94,11 +100,6 @@ export default function Home() {
       setBaseUrl(savedBaseUrl);
     }
 
-    const savedProviderId = localStorage.getItem("ai_agent_provider");
-    if (savedProviderId) {
-      setSelectedProvider(savedProviderId);
-    }
-
     const savedMessages = localStorage.getItem("ai_agent_messages");
     if (savedMessages) {
       try {
@@ -109,7 +110,7 @@ export default function Home() {
     }
 
     async function init() {
-      await refreshModelsList(savedKey || apiKey);
+      await refreshModelsList(savedKey || default9RouterKey, savedBaseUrl || undefined);
       const tree = await refreshFiles();
 
       // Restore last opened file
@@ -144,14 +145,22 @@ export default function Home() {
     }
   }, [messages]);
 
-  const refreshModelsList = async (keyToUse?: string) => {
-    const modelList = await fetchModels(keyToUse || apiKey);
-    if (modelList.length > 0) {
+  const refreshModelsList = async (keyToUse?: string, urlToUse?: string) => {
+    const activeKey = keyToUse ?? apiKey;
+    const activeUrl = urlToUse ?? baseUrl;
+    const modelList = await fetchModels(activeKey, activeUrl);
+    if (modelList && modelList.length > 0) {
       setProviders(modelList);
-      const activeP = modelList.find((p) => p.id === selectedProvider) || modelList[0];
-      setSelectedProvider(activeP.id);
-      if (activeP.models.length > 0 && !activeP.models.includes(selectedModel)) {
-        setSelectedModel(activeP.models[0]);
+      const targetProvider = localStorage.getItem("ai_agent_provider") || selectedProvider;
+      const activeP = modelList.find((p) => p.id === targetProvider) || modelList[0];
+      if (activeP) {
+        setSelectedProvider(activeP.id);
+        const savedM = localStorage.getItem("ai_agent_model");
+        if (savedM && activeP.models.includes(savedM)) {
+          setSelectedModel(savedM);
+        } else if (activeP.models.length > 0 && !activeP.models.includes(selectedModel)) {
+          setSelectedModel(activeP.models[0]);
+        }
       }
     }
   };
@@ -780,7 +789,6 @@ export default function Home() {
             onApiKeyChange={(key) => {
               setApiKey(key);
               localStorage.setItem("ai_agent_api_key", key);
-              refreshModelsList(key);
             }}
             baseUrl={baseUrl}
             onBaseUrlChange={(url) => {
