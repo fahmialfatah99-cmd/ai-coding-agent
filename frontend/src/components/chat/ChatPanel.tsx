@@ -23,6 +23,8 @@ import {
   Users,
   ShieldAlert,
   ShieldCheck,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { ModelProvider, AgentSSEEvent } from "@/lib/api";
 
@@ -96,6 +98,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [inputPrompt, setInputPrompt] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -166,12 +169,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className={`p-1 rounded transition ${
+            className={`relative p-1 rounded transition ${
               showSettings ? "bg-accent text-white" : "text-neutral-400 hover:bg-neutral-800"
             }`}
-            title="Configure API Key"
+            title={`Configure API Key for ${activeProviderObj?.name || selectedProvider}`}
           >
             <Key className="w-3.5 h-3.5" />
+            {apiKey && (
+              <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            )}
           </button>
 
           {onClearChat && (
@@ -300,25 +306,51 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
           )}
           <label className="text-neutral-400 font-medium flex items-center justify-between">
-            <span>API Key for {activeProviderObj?.name || selectedProvider}:</span>
+            <span className="flex items-center gap-1.5">
+              <span>API Key for {activeProviderObj?.name || selectedProvider}:</span>
+              {apiKey && (
+                <span className="text-[9px] text-emerald-400 bg-emerald-950/60 border border-emerald-700/60 rounded px-1 py-0.2 font-medium">
+                  ✓ Configured
+                </span>
+              )}
+            </span>
             {activeProviderObj?.requires_api_key === false && (
-              <span className="text-[9px] text-emerald-400 bg-emerald-950/40 border border-emerald-700/40 rounded px-1.5 py-0.5">
-                No key required
+              <span className="text-[9px] text-neutral-400 bg-neutral-800 border border-neutral-700 rounded px-1.5 py-0.5">
+                Optional
               </span>
             )}
           </label>
-          <input
-            type="password"
-            placeholder={
-              activeProviderObj?.requires_api_key === false
-                ? "(optional for this provider)"
-                : "sk-... / AIzaSy... / sk-ant-..."
-            }
-            value={apiKey}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            disabled={activeProviderObj?.requires_api_key === false}
-            className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
-          />
+          <div className="relative flex items-center">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder={
+                activeProviderObj?.requires_api_key === false
+                  ? "(optional for this provider)"
+                  : selectedProvider === "gemini"
+                  ? "AIzaSy... (Google Gemini Key)"
+                  : selectedProvider === "anthropic"
+                  ? "sk-ant-... (Anthropic API Key)"
+                  : selectedProvider === "groq"
+                  ? "gsk_... (Groq API Key)"
+                  : selectedProvider === "openrouter"
+                  ? "sk-or-... (OpenRouter API Key)"
+                  : "sk-... (API Key)"
+              }
+              value={apiKey}
+              onChange={(e) => onApiKeyChange(e.target.value)}
+              className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-accent pr-8 font-mono"
+            />
+            {apiKey && (
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2 text-neutral-500 hover:text-neutral-300 transition"
+                title={showPassword ? "Hide API Key" : "Show API Key"}
+              >
+                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            )}
+          </div>
           {onBaseUrlChange && (
             <>
               <label className="text-neutral-400 font-medium mt-1">
@@ -326,15 +358,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               </label>
               <input
                 type="text"
-                placeholder="https://api.openai.com/v1"
+                placeholder={
+                  selectedProvider === "9router"
+                    ? "http://127.0.0.1:20128/v1"
+                    : selectedProvider === "ollama"
+                    ? "http://127.0.0.1:11434/v1"
+                    : "https://api.openai.com/v1"
+                }
                 value={baseUrl}
                 onChange={(e) => onBaseUrlChange(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-accent"
+                className="w-full bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-accent font-mono text-[11px]"
               />
             </>
           )}
           <span className="text-[10px] text-neutral-500">
-            Stored locally in browser session memory. Switch provider above to see compatible defaults.
+            Tersimpan otomatis per provider di browser storage. Masukkan API key langsung di sini untuk mengaktifkan provider yang dipilih.
           </span>
         </div>
       )}

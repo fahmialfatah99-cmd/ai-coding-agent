@@ -63,23 +63,20 @@ export default function Home() {
       setWorkspacePath(savedWorkspace);
       setTempWorkspaceInput(savedWorkspace);
     }
-    // Restore Saved Settings
+    // Restore Saved Provider & Provider-Specific Settings
     const default9RouterKey = "sk-3b791e4140c2fd0c-s2g2dt-fe07f69f";
-    const savedKey = localStorage.getItem("ai_agent_api_key");
-    if (savedKey) {
-      setApiKey(savedKey);
-    } else {
-      setApiKey(default9RouterKey);
-      localStorage.setItem("ai_agent_api_key", default9RouterKey);
-    }
+    const savedProviderId = localStorage.getItem("ai_agent_provider") || "9router";
+    setSelectedProvider(savedProviderId);
 
-    const savedProviderId = localStorage.getItem("ai_agent_provider");
-    if (savedProviderId) {
-      setSelectedProvider(savedProviderId);
-    } else {
-      setSelectedProvider("9router");
-      localStorage.setItem("ai_agent_provider", "9router");
-    }
+    const savedProviderKey = localStorage.getItem(`ai_agent_key_${savedProviderId}`);
+    const globalKey = localStorage.getItem("ai_agent_api_key");
+    const activeKeyToUse = savedProviderKey !== null ? savedProviderKey : (globalKey || (savedProviderId === "9router" ? default9RouterKey : ""));
+    setApiKey(activeKeyToUse);
+
+    const savedProviderUrl = localStorage.getItem(`ai_agent_base_url_${savedProviderId}`);
+    const globalUrl = localStorage.getItem("ai_agent_base_url");
+    const activeUrlToUse = savedProviderUrl !== null ? savedProviderUrl : (globalUrl || "");
+    setBaseUrl(activeUrlToUse);
 
     const savedMode = localStorage.getItem("ai_agent_execution_mode") as "solo" | "team" | null;
     if (savedMode) {
@@ -93,11 +90,6 @@ export default function Home() {
       setSelectedModel(savedModel);
     } else {
       setSelectedModel("ag/gemini-3.7-flash-high");
-    }
-
-    const savedBaseUrl = localStorage.getItem("ai_agent_base_url");
-    if (savedBaseUrl) {
-      setBaseUrl(savedBaseUrl);
     }
 
     const savedMessages = localStorage.getItem("ai_agent_messages");
@@ -776,24 +768,47 @@ export default function Home() {
               localStorage.setItem("ai_agent_provider", p);
               const provObj = providers.find((item) => item.id === p);
               if (provObj && provObj.models.length > 0) {
-                setSelectedModel(provObj.models[0]);
-                localStorage.setItem("ai_agent_model", provObj.models[0]);
+                const savedM = localStorage.getItem(`ai_agent_model_${p}`) || localStorage.getItem("ai_agent_model");
+                if (savedM && provObj.models.includes(savedM)) {
+                  setSelectedModel(savedM);
+                } else {
+                  setSelectedModel(provObj.models[0]);
+                }
+              }
+              const default9Key = "sk-3b791e4140c2fd0c-s2g2dt-fe07f69f";
+              const savedKey = localStorage.getItem(`ai_agent_key_${p}`);
+              if (savedKey !== null) {
+                setApiKey(savedKey);
+              } else if (p === "9router") {
+                setApiKey(localStorage.getItem("ai_agent_api_key") || default9Key);
+              } else {
+                setApiKey("");
+              }
+
+              const savedUrl = localStorage.getItem(`ai_agent_base_url_${p}`);
+              if (savedUrl !== null) {
+                setBaseUrl(savedUrl);
+              } else {
+                setBaseUrl("");
               }
             }}
             selectedModel={selectedModel}
             onModelChange={(m) => {
               setSelectedModel(m);
               localStorage.setItem("ai_agent_model", m);
+              localStorage.setItem(`ai_agent_model_${selectedProvider}`, m);
             }}
             apiKey={apiKey}
             onApiKeyChange={(key) => {
               setApiKey(key);
               localStorage.setItem("ai_agent_api_key", key);
+              localStorage.setItem(`ai_agent_key_${selectedProvider}`, key);
             }}
             baseUrl={baseUrl}
             onBaseUrlChange={(url) => {
               setBaseUrl(url);
               localStorage.setItem("ai_agent_base_url", url);
+              localStorage.setItem(`ai_agent_base_url_${selectedProvider}`, url);
             }}
             mode={executionMode}
             onModeChange={(m) => {
