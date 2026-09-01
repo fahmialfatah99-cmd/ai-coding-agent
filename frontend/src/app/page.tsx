@@ -780,8 +780,8 @@ export default function Home() {
           />
         </main>
 
-        {/* Right: AI Chat Assistant (380px) */}
-        <aside className="w-96 shrink-0 h-full">
+        {/* Right: AI Chat Assistant (420px) */}
+        <aside className="w-[420px] shrink-0 h-full">
           <ChatPanel
             providers={providers}
             selectedProvider={selectedProvider}
@@ -847,10 +847,6 @@ export default function Home() {
               setActiveFile("");
               setActiveCode("");
               localStorage.removeItem("ai_agent_active_file");
-            }}
-            onClearChat={() => {
-              setMessages([]);
-              localStorage.removeItem("ai_agent_messages");
             }}
             onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
           />
