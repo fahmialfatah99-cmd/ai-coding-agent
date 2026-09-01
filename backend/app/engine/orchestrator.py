@@ -352,6 +352,10 @@ class AgentOrchestrator:
             # would otherwise be interpolated into a shell string.
             if not isinstance(commit_msg, str) or len(commit_msg) > 4096:
                 return {"error": "commit_message must be a string <= 4096 chars."}
+            # Reject shell metacharacters that could be used for injection if ever
+            # passed to a shell (defense in depth, even though we use argv).
+            if _re.search(r'[;&|$`\\"\']', commit_msg):
+                return {"error": "commit_message contains disallowed characters."}
             if not isinstance(branch, str) or not _re.match(r"^[A-Za-z0-9._/\-]+$", branch) or len(branch) > 200:
                 return {"error": "branch must match [A-Za-z0-9._/-]+ and be <= 200 chars."}
             # Strip NUL bytes and control chars that git would reject anyway.
