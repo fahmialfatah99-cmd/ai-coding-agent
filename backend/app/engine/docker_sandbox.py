@@ -83,7 +83,7 @@ class DockerSandboxManager:
                     )
                     stdout = exec_res.output[0].decode("utf8", errors="replace") if exec_res.output[0] else ""
                     stderr = exec_res.output[1].decode("utf8", errors="replace") if exec_res.output[1] else ""
-                    
+
                     return {
                         "exit_code": exec_res.exit_code,
                         "stdout": stdout,
@@ -96,6 +96,103 @@ class DockerSandboxManager:
 
         # 2. Local Subprocess Fallback
         return self._run_local_fallback(cmd, timeout_sec)
+
+    def execute_command_argv(self, argv, timeout_sec: int = 30) -> Dict[str, Any]:
+        """
+        Executes a command as an argument vector (no shell interpolation).
+        This is the SAFE path for any user-influenced input such as git commit
+        messages, branch names, or file paths — shell metacharacters cannot
+        break out into arbitrary command execution.
+
+        The argv is a list of strings, e.g. ["git", "commit", "-m", "..."].
+        On Docker we pass the list directly to exec_run; on local fallback we
+        run it via subprocess.run with shell=False.
+        """
+        if not argv or not isinstance(argv, (list, tuple)) or not all(isinstance(a, str) for a in argv):
+            return {
+                "exit_code": -1,
+                "stdout": "",
+                "stderr": "execute_command_argv requires a list of strings.",
+                "success": False,
+                "environment": "error",
+            }
+
+        # 1. Try Docker Container execution (no shell).
+        if self.docker_client:
+            if not self.container:
+                self.start_sandbox()
+            if self.container:
+                try:
+                    exec_res = self.container.exec_run(
+                        cmd=list(argv),
+                        workdir="/workspace",
+                        demux=True,
+                        environment={"PYTHONUNBUFFERED": "1"},
+                    )
+                    stdout = exec_res.output[0].decode("utf8", errors="replace") if exec_res.output[0] else ""
+                    stderr = exec_res.output[1].decode("utf8", errors="replace") if exec_res.output[1] else ""
+                    return {
+                        "exit_code": exec_res.exit_code,
+                        "stdout": stdout,
+                        "stderr": stderr,
+                        "success": exec_res.exit_code == 0,
+                        "environment": "docker_sandbox",
+                    }
+                except Exception:
+                    pass
+
+        # 2. Local Subprocess Fallback (shell=False).
+        try:
+            if os.name == "nt":
+                # On Windows, Python's subprocess with shell=False handles list
+                # args correctly. No PowerShell preamble needed here because
+                # we are not parsing shell syntax.
+                res = subprocess.run(
+                    list(argv),
+                    cwd=self.workspace_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_sec,
+                )
+            else:
+                res = subprocess.run(
+                    list(argv),
+                    cwd=self.workspace_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_sec,
+                )
+            return {
+                "exit_code": res.returncode,
+                "stdout": res.stdout or "",
+                "stderr": res.stderr or "",
+                "success": res.returncode == 0,
+                "environment": "local_fallback",
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "exit_code": -1,
+                "stdout": "",
+                "stderr": f"Command timed out after {timeout_sec} seconds.",
+                "success": False,
+                "environment": "local_fallback",
+            }
+        except FileNotFoundError as e:
+            return {
+                "exit_code": -1,
+                "stdout": "",
+                "stderr": f"Command not found: {e}",
+                "success": False,
+                "environment": "local_fallback",
+            }
+        except Exception as e:
+            return {
+                "exit_code": -1,
+                "stdout": "",
+                "stderr": f"Execution Error: {str(e)}",
+                "success": False,
+                "environment": "local_fallback",
+            }
 
     def _run_local_fallback(self, cmd: str, timeout_sec: int) -> Dict[str, Any]:
         try:

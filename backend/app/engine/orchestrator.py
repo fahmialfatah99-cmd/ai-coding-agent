@@ -31,7 +31,8 @@ class AgentOrchestrator:
         provider: str = "9router",
         api_key: Optional[str] = None,
         model: Optional[str] = None,
-        base_url: Optional[str] = None
+        base_url: Optional[str] = None,
+        role_models: Optional[Dict[str, Dict[str, Any]]] = None
     ):
         if not os.path.isabs(workspace_path):
             base_dir = get_repo_root()
@@ -40,7 +41,7 @@ class AgentOrchestrator:
         else:
             self.workspace_path = os.path.abspath(workspace_path)
         os.makedirs(self.workspace_path, exist_ok=True)
-        
+
         self.sandbox = DockerSandboxManager(self.workspace_path)
         self.active_file: Optional[str] = None
         self.chunker = ASTCodeChunker()
@@ -50,6 +51,29 @@ class AgentOrchestrator:
             model=model,
             base_url=base_url
         )
+        # Role-specific model overrides for the team swarm. Each entry can set
+        # provider/model/api_key/base_url. Missing keys fall back to llm_client.
+        # Supported roles: "architect", "builder", "auditor".
+        self.role_models: Dict[str, Dict[str, Any]] = role_models or {}
+        self._role_clients: Dict[str, UnifiedLLMClient] = {}
+
+    def _get_role_client(self, role: str) -> UnifiedLLMClient:
+        """
+        Returns a UnifiedLLMClient for a given team role (architect/builder/auditor).
+        If a role-specific override is configured in self.role_models, that wins;
+        otherwise the default self.llm_client is reused.
+        """
+        if role in self._role_clients:
+            return self._role_clients[role]
+        spec = self.role_models.get(role) or {}
+        client = UnifiedLLMClient(
+            provider=spec.get("provider") or self.llm_client.provider,
+            api_key=spec.get("api_key") or self.llm_client.api_key,
+            model=spec.get("model") or self.llm_client.model,
+            base_url=spec.get("base_url") or self.llm_client.base_url,
+        )
+        self._role_clients[role] = client
+        return client
 
     def _get_tools_definition(self) -> List[Dict[str, Any]]:
         return [
@@ -306,21 +330,43 @@ class AgentOrchestrator:
             }
 
         elif tool_name == "git_commit_and_push":
+            import re as _re
             commit_msg = args.get("commit_message", "update codebase via AI Agent")
             branch = args.get("branch", "main")
-            
+
+            # SECURITY: Validate user-influenced inputs to prevent command injection.
+            # Without this, a malicious LLM output like
+            #   commit_message = 'x"; rm -rf /; #'
+            # would otherwise be interpolated into a shell string.
+            if not isinstance(commit_msg, str) or len(commit_msg) > 4096:
+                return {"error": "commit_message must be a string <= 4096 chars."}
+            if not isinstance(branch, str) or not _re.match(r"^[A-Za-z0-9._/\-]+$", branch) or len(branch) > 200:
+                return {"error": "branch must match [A-Za-z0-9._/-]+ and be <= 200 chars."}
+            # Strip NUL bytes and control chars that git would reject anyway.
+            commit_msg = commit_msg.replace("\x00", "")
+
             repo_root = get_repo_root()
-            self.sandbox.execute_command(f'git -C "{repo_root}" add .')
-            commit_res = self.sandbox.execute_command(f'git -C "{repo_root}" commit -m "{commit_msg}"')
-            push_res = self.sandbox.execute_command(f'git -C "{repo_root}" push origin {branch}')
-            
-            is_ok = push_res.get("success", False) or "up to date" in (push_res.get("stderr", "") + commit_res.get("stdout", "")).lower()
+
+            # Run git as an argument vector (no shell interpolation) so commit
+            # message / branch can't break out into arbitrary command execution.
+            self.sandbox.execute_command_argv(["git", "-C", repo_root, "add", "."])
+            commit_res = self.sandbox.execute_command_argv(
+                ["git", "-C", repo_root, "commit", "-m", commit_msg]
+            )
+            push_res = self.sandbox.execute_command_argv(
+                ["git", "-C", repo_root, "push", "origin", branch]
+            )
+
+            is_ok = (
+                push_res.get("success", False)
+                or "up to date" in (push_res.get("stderr", "") + commit_res.get("stdout", "")).lower()
+            )
             return {
                 "status": "success" if is_ok else "failed",
                 "commit_message": commit_msg,
                 "branch": branch,
                 "stdout": push_res.get("stdout") or commit_res.get("stdout") or "",
-                "stderr": push_res.get("stderr") or ""
+                "stderr": push_res.get("stderr") or "",
             }
 
         elif tool_name == "run_sandbox_command":
@@ -545,7 +591,7 @@ class AgentOrchestrator:
         if file_content is not None:
             arch_prompt += f"\nActive File Content:\n```\n{file_content}\n```"
 
-        arch_res = await self.llm_client.chat_completion(
+        arch_res = await self._get_role_client("architect").chat_completion(
             messages=[
                 {"role": "system", "content": architect_system},
                 {"role": "user", "content": arch_prompt}
@@ -653,7 +699,7 @@ class AgentOrchestrator:
 
             # Builder ReAct Loop (Up to 4 iterations per cycle)
             for b_iter in range(4):
-                b_res = await self.llm_client.chat_completion(
+                b_res = await self._get_role_client("builder").chat_completion(
                     messages=builder_messages,
                     tools=self._get_tools_definition(),
                     temperature=0.1
@@ -789,7 +835,7 @@ class AgentOrchestrator:
                 f"Workspace Code Under Audit:\n{code_to_audit}"
             )
 
-            audit_res = await self.llm_client.chat_completion(
+            audit_res = await self._get_role_client("auditor").chat_completion(
                 messages=[
                     {"role": "system", "content": auditor_system},
                     {"role": "user", "content": audit_eval_prompt}
