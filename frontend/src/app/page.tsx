@@ -102,7 +102,7 @@ export default function Home() {
     }
 
     async function init() {
-      await refreshModelsList(savedKey || default9RouterKey, savedBaseUrl || undefined);
+      await refreshModelsList(activeKeyToUse, activeUrlToUse || undefined);
       const tree = await refreshFiles();
 
       // Restore last opened file
