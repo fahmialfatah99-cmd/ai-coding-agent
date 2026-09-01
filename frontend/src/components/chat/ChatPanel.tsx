@@ -101,6 +101,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [inputPrompt, setInputPrompt] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -164,15 +165,51 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
           {onClearChat && (
             <button
-              onClick={onClearChat}
-              className="p-1 text-neutral-400 hover:text-rose-400 hover:bg-neutral-800 rounded transition"
-              title="Clear Chat History"
+              onClick={() => {
+                if (messages.length > 0) {
+                  setShowClearConfirm(!showClearConfirm);
+                } else {
+                  onClearChat();
+                }
+              }}
+              className={`p-1 rounded transition ${
+                showClearConfirm
+                  ? "bg-rose-900/60 text-rose-300 border border-rose-700"
+                  : "text-neutral-400 hover:text-rose-400 hover:bg-neutral-800"
+              }`}
+              title="Bersihkan Riwayat Chat"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
+
+      {/* Confirmation Banner for Clear Chat */}
+      {showClearConfirm && (
+        <div className="px-3.5 py-2 bg-rose-950/90 border-b border-rose-800 text-xs flex items-center justify-between animate-fadeIn select-none">
+          <span className="text-rose-200 text-[11px] font-medium">
+            Hapus seluruh {messages.length} pesan riwayat chat?
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                if (onClearChat) onClearChat();
+                setShowClearConfirm(false);
+              }}
+              className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold transition"
+            >
+              Ya, Hapus
+            </button>
+            <button
+              onClick={() => setShowClearConfirm(false)}
+              className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-[11px] transition"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Top Header Toolbar: Row 2 (Provider & Model Dropdowns) */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-[#161616] border-b border-neutral-800 text-xs">

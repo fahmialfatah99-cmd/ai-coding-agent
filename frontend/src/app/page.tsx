@@ -24,9 +24,10 @@ import {
   AgentSSEEvent,
   DEFAULT_PROVIDERS,
 } from "@/lib/api";
-import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain, ChevronDown, FolderCheck, Sparkles, Github, Key } from "lucide-react";
+import { Code2, FolderGit2, CheckCircle2, AlertCircle, Edit3, Check, Eye, Columns, Brain, ChevronDown, FolderCheck, Sparkles, Github, Key, Trash2 } from "lucide-react";
 import { GitHubModal } from "@/components/github/GitHubModal";
 import { ApiKeyModal } from "@/components/settings/ApiKeyModal";
+import { ClearHistoryModal } from "@/components/settings/ClearHistoryModal";
 
 export default function Home() {
   const [workspacePath, setWorkspacePath] = useState("./workspace");
@@ -41,6 +42,7 @@ export default function Home() {
   const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
   const [originalDiffCode, setOriginalDiffCode] = useState<string | null>(null);
   const [modifiedDiffCode, setModifiedDiffCode] = useState<string | null>(null);
   const [diffFilePath, setDiffFilePath] = useState<string>("");
@@ -615,6 +617,15 @@ export default function Home() {
           </button>
 
           <button
+            onClick={() => setIsClearHistoryModalOpen(true)}
+            className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-rose-300 px-2.5 py-1 rounded border border-neutral-800 transition cursor-pointer text-xs select-none shadow-sm"
+            title="Bersihkan Riwayat Chat, Log Sandbox Terminal & Sesi Editor"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <span className="font-medium text-[11px]">Bersihkan Riwayat</span>
+          </button>
+
+          <button
             onClick={() => setIsGitHubModalOpen(true)}
             className="flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white px-2.5 py-1 rounded border border-neutral-800 transition cursor-pointer text-xs select-none shadow-sm"
             title="Configure GitHub Token & Push Credentials"
@@ -878,6 +889,40 @@ export default function Home() {
         }}
         baseUrl={baseUrl}
         onRefreshModels={handleRefreshModels}
+      />
+
+      {/* Clear History & Reset Session Modal */}
+      <ClearHistoryModal
+        isOpen={isClearHistoryModalOpen}
+        onClose={() => setIsClearHistoryModalOpen(false)}
+        chatCount={messages.length}
+        terminalCount={terminalLogs.length}
+        onClearChat={() => {
+          setMessages([]);
+          localStorage.removeItem("ai_agent_messages");
+        }}
+        onClearTerminal={() => {
+          setTerminalLogs([]);
+        }}
+        onClearEditorState={() => {
+          setActiveFile("");
+          setActiveCode("");
+          setOriginalDiffCode(null);
+          setModifiedDiffCode(null);
+          setDiffFilePath("");
+          localStorage.removeItem("ai_agent_active_file");
+        }}
+        onClearAll={() => {
+          setMessages([]);
+          localStorage.removeItem("ai_agent_messages");
+          setTerminalLogs([]);
+          setActiveFile("");
+          setActiveCode("");
+          setOriginalDiffCode(null);
+          setModifiedDiffCode(null);
+          setDiffFilePath("");
+          localStorage.removeItem("ai_agent_active_file");
+        }}
       />
 
       {/* Skills & Long-Term Memory Modal */}
