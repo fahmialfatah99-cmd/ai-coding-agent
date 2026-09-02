@@ -342,6 +342,11 @@ needed.
   loop. If the prompt you are writing contains "do not flag," "don't treat X
   as a defect," "at most Minor," or "the plan chose" — stop: you are
   pre-judging, usually to spare yourself a review loop.
+- **Verification Gate:** Before accepting a task as complete, confirm the
+  implementer's report contains fresh verification evidence: exact commands
+  run and their passing output. A report without verification evidence is
+  incomplete — return it for amendment before proceeding to review.
+
 The task reviewer may report "⚠️ Cannot verify from diff" items — requirements
 that live in unchanged code or span tasks. These do not block the rest of the
 review, but you must resolve each one yourself before marking the task
