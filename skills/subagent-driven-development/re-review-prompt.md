@@ -71,6 +71,11 @@ Subagent (general-purpose):
     specific doubt that no existing run answers — and then a focused test,
     never a package-wide suite.
 
+    **Verification Gate:** Before marking any finding as ADDRESSED, confirm
+    the fix report contains: (1) the covering test files named explicitly,
+    (2) the exact command run, and (3) the passing output. Without all three,
+    the fix is unverified — mark it NOT ADDRESSED.
+
     ## Output Format
 
     Your final message is the report itself: begin directly with the first

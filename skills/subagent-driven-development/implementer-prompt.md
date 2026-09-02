@@ -32,12 +32,13 @@ Subagent (general-purpose):
     ## Your Job
 
     Once you're clear on requirements:
-    1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
-    4. Commit your work
-    5. Self-review (see below)
-    6. Report back
+    1. **If TDD is required:** Write ONE failing test first, watch it fail, then write minimal code to pass
+    2. Implement exactly what the task specifies
+    3. Write tests (following TDD if task says to)
+    4. Verify implementation works
+    5. Commit your work
+    6. Self-review (see below)
+    7. Report back
 
     Work from: [directory]
 
@@ -46,6 +47,22 @@ Subagent (general-purpose):
 
     While iterating, run the focused test for what you're changing; run the
     full suite once before committing, not after every edit.
+
+    ## TDD Is Non-Negotiable When Required
+
+    If the task requires TDD, follow the Red-Green-Refactor cycle exactly:
+
+    **RED:** Write one failing test. Run it. Watch it fail. Confirm the failure message matches what you expected.
+    **GREEN:** Write the minimal code to pass that one test. Run it. Watch it pass.
+    **REFACTOR:** Clean up duplication, improve names. Keep tests green.
+
+    **Never write implementation code before a failing test exists.** If you catch yourself writing code first, delete it and start over with a test.
+
+    **TDD evidence in report:** For each test, include:
+    - The test command you ran
+    - The failing output before implementation (RED)
+    - Why the failure was expected (what behavior was missing)
+    - The passing output after implementation (GREEN)
 
     ## You Do Not Dispatch Subagents
 
@@ -142,6 +159,7 @@ Subagent (general-purpose):
     - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
     - Commits created (short SHA + subject)
     - One-line test summary (e.g. "14/14 passing, output pristine")
+    - **Verification evidence:** The exact verification command(s) run and their output summary (e.g. "npm test: 0 failures" or "build: exit 0")
     - Your concerns, if any
     - The report file path
 
@@ -151,4 +169,8 @@ Subagent (general-purpose):
     Use DONE_WITH_CONCERNS if you completed the work but have doubts about correctness.
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need
     information that wasn't provided. Never silently produce work you're unsure about.
+
+    **Critical:** You MUST run verification commands fresh before reporting DONE.
+    No completion claims without running the verification command in this session.
+    Evidence before assertions always.
 ```

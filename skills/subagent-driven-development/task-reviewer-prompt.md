@@ -91,6 +91,11 @@ Subagent (general-purpose):
     Re-running the suite to regenerate what you failed to read is not
     verification; illegibility of the evidence is not invalidation of it.
 
+    **Verification Gate:** Before marking any finding as addressed in a
+    re-review, confirm the fix report contains: (1) the covering test files
+    named explicitly, (2) the exact command run, and (3) the passing output.
+    Without all three, the fix is unverified — flag it as NOT ADDRESSED.
+
     ## Part 1: Spec Compliance
 
     Compare the diff against What Was Requested:

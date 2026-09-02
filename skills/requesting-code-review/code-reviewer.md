@@ -68,12 +68,14 @@ Subagent (general-purpose):
     - Edge cases covered?
     - Integration tests where they matter?
     - All tests passing?
+    - **Verification evidence present?** Does the implementation report contain fresh verification command output (test runs, build output) with passing results?
 
     **Production readiness:**
     - Migration strategy if schema changed?
     - Backward compatibility considered?
     - Documentation complete?
     - No obvious bugs?
+    - **Empirical verification:** Are claims about correctness backed by actual test/build output, not just assertions?
 
     ## Calibration
 
