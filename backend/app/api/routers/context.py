@@ -33,9 +33,15 @@ async def parse_code_ast(req: ParseFileRequest):
 
 @router.post("/search-symbols")
 async def search_symbols(req: SymbolSearchRequest):
-    """Searches symbol definitions (functions, classes, methods) in a file."""
-    abs_path = os.path.abspath(os.path.join(req.workspace_path, req.file_path))
-    if not os.path.exists(abs_path):
+    abs_root = os.path.abspath(req.workspace_path)
+    clean_path = req.file_path.strip().lstrip("/\\")
+    abs_path = os.path.abspath(os.path.join(abs_root, clean_path))
+    try:
+        if os.path.commonpath([abs_root, abs_path]) != abs_root:
+            raise HTTPException(status_code=403, detail="Access denied: Path outside workspace boundary.")
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied: Invalid path traversal.")
+    if not os.path.exists(abs_path) or os.path.isdir(abs_path):
         raise HTTPException(status_code=404, detail="File not found")
         
     with open(abs_path, "r", encoding="utf-8") as f:

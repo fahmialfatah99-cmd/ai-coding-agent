@@ -35,7 +35,7 @@ async def create_session(req: CreateSessionRequest):
         "workspace_path": req.workspace_path,
         "provider": req.provider,
         "model": req.model,
-        "created_at": datetime.datetime.utcnow().isoformat(),
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "messages": []
     }
     ACTIVE_SESSIONS[session_id] = session_data
@@ -64,7 +64,7 @@ async def add_message_to_session(session_id: str, msg: SaveMessageRequest):
         "role": msg.role,
         "content": msg.content,
         "tool_calls": msg.tool_calls,
-        "timestamp": datetime.datetime.utcnow().isoformat()
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
     ACTIVE_SESSIONS[session_id]["messages"].append(msg_entry)
     return msg_entry

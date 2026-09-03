@@ -97,6 +97,18 @@ class DockerSandboxManager:
         # 2. Local Subprocess Fallback
         return self._run_local_fallback(cmd, timeout_sec)
 
+    def _get_execution_env(self) -> Dict[str, str]:
+        env = os.environ.copy()
+        try:
+            import glob
+            user_nvm = os.path.expanduser("~/.nvm/versions/node/*/bin")
+            nvm_nodes = glob.glob(user_nvm) + glob.glob('/root/.nvm/versions/node/*/bin')
+            if nvm_nodes:
+                env['PATH'] = ':'.join(nvm_nodes) + ':' + env.get('PATH', '')
+        except Exception:
+            pass
+        return env
+
     def execute_command_argv(self, argv, timeout_sec: int = 30) -> Dict[str, Any]:
         """
         Executes a command as an argument vector (no shell interpolation).
@@ -143,16 +155,15 @@ class DockerSandboxManager:
 
         # 2. Local Subprocess Fallback (shell=False).
         try:
+            env = self._get_execution_env()
             if os.name == "nt":
-                # On Windows, Python's subprocess with shell=False handles list
-                # args correctly. No PowerShell preamble needed here because
-                # we are not parsing shell syntax.
                 res = subprocess.run(
                     list(argv),
                     cwd=self.workspace_path,
                     capture_output=True,
                     text=True,
                     timeout=timeout_sec,
+                    env=env,
                 )
             else:
                 res = subprocess.run(
@@ -161,6 +172,7 @@ class DockerSandboxManager:
                     capture_output=True,
                     text=True,
                     timeout=timeout_sec,
+                    env=env,
                 )
             return {
                 "exit_code": res.returncode,
@@ -205,15 +217,11 @@ class DockerSandboxManager:
                     cwd=self.workspace_path,
                     capture_output=True,
                     text=True,
-                    timeout=timeout_sec
+                    timeout=timeout_sec,
+                    env=self._get_execution_env()
                 )
             else:
-                env = os.environ.copy()
-                import glob
-                nvm_nodes = glob.glob('/home/fahmial/.nvm/versions/node/*/bin') + glob.glob('/root/.nvm/versions/node/*/bin')
-                if nvm_nodes:
-                    env['PATH'] = ':'.join(nvm_nodes) + ':' + env.get('PATH', '')
-
+                env = self._get_execution_env()
                 res = subprocess.run(
                     cmd,
                     shell=True,

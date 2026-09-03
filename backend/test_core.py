@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+import pytest
 from fastapi.testclient import TestClient
 
 # Add backend/app to sys.path
@@ -478,80 +479,61 @@ def test_all_9_routers_endpoints():
           f"({len(providers)} providers exposed).")
 
 
-def test_all_9_routers_endpoints():
-    """Test endpoints across all 9 modular routers using FastAPI TestClient."""
-    client = TestClient(app)
-    
-    # 1. Root & router list
-    res = client.get("/")
-    assert res.status_code == 200
-    assert res.json()["routers_count"] == 9
-    
-    # 2. Agent Router
-    res = client.get("/api/v1/agent/health")
-    assert res.status_code == 200
-    
-    # 3. Workspaces Router
-    res = client.get("/api/v1/workspaces")
-    assert res.status_code == 200
-    
-    # 4. Files Router
-    res = client.get("/api/v1/files?workspace_path=./test_workspace")
-    assert res.status_code == 200
-    
-    # 5. Context Router
-    res = client.get("/api/v1/context/languages")
-    assert res.status_code == 200
-    assert ".py" in res.json()["supported_extensions"]
-    
-    # 6. Vector Router
-    res = client.post("/api/v1/vector/search", json={"query": "agent"})
-    assert res.status_code == 200
-    
-    # 7. Sandbox Router
-    res = client.get("/api/v1/sandbox/status?workspace_path=./test_workspace")
-    assert res.status_code == 200
-    
-    # 8. Models Router — now exposes ALL 11 providers, not just 9Router.
-    res = client.get("/api/v1/models")
-    assert res.status_code == 200
-    providers = res.json()["providers"]
-    assert len(providers) >= 11, f"Expected >=11 providers, got {len(providers)}"
-    expected_ids = {"9router", "openai", "gemini", "anthropic", "ollama", "groq",
-                    "mistral", "cohere", "together", "deepseek", "openrouter"}
-    got_ids = {p["id"] for p in providers}
-    missing = expected_ids - got_ids
-    assert not missing, f"Missing providers in /api/v1/models: {missing}"
-    # 9Router is still listed first for backward compat.
-    assert providers[0]["id"] == "9router"
+def test_security_path_traversal_and_new_tools():
+    """Verify path traversal prevention and new orchestrator tools (delete_file, search_codebase)."""
+    async def _run():
+        from app.engine.orchestrator import AgentOrchestrator
+        import shutil
+        
+        test_dir = os.path.abspath("./test_security_ws")
+        os.makedirs(test_dir, exist_ok=True)
+        try:
+            # Create a sample file in test workspace
+            sample_file = os.path.join(test_dir, "sample.txt")
+            with open(sample_file, "w", encoding="utf-8") as f:
+                f.write("hello security test\nsearch_keyword_target\n")
+                
+            orc = AgentOrchestrator(workspace_path=test_dir)
+            
+            # 1. Path traversal read should be blocked
+            traversal_read = await orc.execute_tool("read_file", {"path": "../../etc/passwd"})
+            assert "error" in traversal_read
+            assert "Path traversal denied" in traversal_read["error"]
+            
+            # 2. Path traversal write should be blocked
+            traversal_write = await orc.execute_tool("write_file", {"path": "../escaped.txt", "content": "bad"})
+            assert "error" in traversal_write
+            assert "Path traversal denied" in traversal_write["error"]
+            
+            # 3. Path traversal search_ast_symbols should be blocked
+            traversal_ast = await orc.execute_tool("search_ast_symbols", {"path": "../../escaped.py", "query": "test"})
+            assert "error" in traversal_ast
+            assert "Path traversal denied" in traversal_ast["error"]
+            
+            # 4. Search codebase tool
+            search_res = await orc.execute_tool("search_codebase", {"query": "search_keyword_target"})
+            assert search_res.get("total_matches", 0) >= 1
+            assert any("search_keyword_target" in m["content"] for m in search_res.get("matches", []))
+            
+            # 5. Delete file tool
+            delete_res = await orc.execute_tool("delete_file", {"path": "sample.txt"})
+            assert delete_res.get("status") == "success"
+            assert not os.path.exists(sample_file)
+            
+            # 6. Delete file path traversal blocked
+            traversal_del = await orc.execute_tool("delete_file", {"path": "../../escaped.txt"})
+            assert "error" in traversal_del
+            assert "Path traversal denied" in traversal_del["error"]
+            
+            # 7. Router path traversal prevention
+            client = TestClient(app)
+            res = client.post("/api/v1/files/read", json={"workspace_path": test_dir, "file_path": "../../etc/passwd"})
+            assert res.status_code == 403
+        finally:
+            if os.path.exists(test_dir):
+                shutil.rmtree(test_dir)
 
-    # 8b. New generic /models/sync endpoint.
-    res = client.post("/api/v1/models/sync", json={"provider": "openai"})
-    assert res.status_code == 200
-    body = res.json()
-    assert body["provider"] == "openai"
-    assert "gpt-4o" in body["models"], f"gpt-4o missing from {body['models']}"
-    
-    # 9. Sessions Router
-    res = client.get("/api/v1/sessions")
-    assert res.status_code == 200
-    
-    # 10. Diff Router
-    res = client.post("/api/v1/diff/generate", json={
-        "file_path": "sample.py",
-        "original_code": "a = 1\n",
-        "modified_code": "a = 2\n"
-    })
-    assert res.status_code == 200
-    assert res.json()["has_changes"] is True
-
-    # 11. Agent Health Check
-    res = client.get("/api/v1/agent/health")
-    assert res.status_code == 200
-    assert res.json()["status"] == "ready"
-    
-    print(f"[-] All 9 Modular Router endpoints tested and PASSED successfully "
-          f"({len(providers)} providers exposed).")
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":

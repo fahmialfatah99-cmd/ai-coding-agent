@@ -1,3 +1,30 @@
-```
-# Documentation and skills related files are source files, no need to ignore
-```
+# Dependencies
+node_modules/
+backend/venv/
+.venv/
+
+# Next.js build outputs
+frontend/.next/
+frontend/out/
+frontend/build/
+*.tsbuildinfo
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment and secrets
+.env
+.env*.local
+backend/.env
+
+# Temporary / Agent workspaces
+workspace/
+test_security_ws/
+test_workspace/
+*.log

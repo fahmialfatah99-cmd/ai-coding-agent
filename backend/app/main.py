@@ -8,7 +8,8 @@ except Exception:
     pass
 
 try:
-    nvm_nodes = glob.glob('/home/fahmial/.nvm/versions/node/*/bin') + glob.glob('/root/.nvm/versions/node/*/bin')
+    user_nvm = os.path.expanduser("~/.nvm/versions/node/*/bin")
+    nvm_nodes = glob.glob(user_nvm) + glob.glob('/root/.nvm/versions/node/*/bin')
     if nvm_nodes:
         os.environ['PATH'] = ':'.join(nvm_nodes) + ':' + os.environ.get('PATH', '')
 except Exception:

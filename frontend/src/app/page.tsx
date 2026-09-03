@@ -51,7 +51,7 @@ export default function Home() {
   const [providers, setProviders] = useState<ModelProvider[]>(DEFAULT_PROVIDERS);
   const [selectedProvider, setSelectedProvider] = useState<string>("9router");
   const [selectedModel, setSelectedModel] = useState<string>("ag/gemini-3.7-flash-high");
-  const [apiKey, setApiKey] = useState<string>("sk-3b791e4140c2fd0c-s2g2dt-fe07f69f");
+  const [apiKey, setApiKey] = useState<string>(process.env.NEXT_PUBLIC_NINEROUTER_API_KEY || "");
   const [baseUrl, setBaseUrl] = useState<string>("");
 
   // Chat & Terminal State with Persistence
@@ -68,7 +68,7 @@ export default function Home() {
       setTempWorkspaceInput(savedWorkspace);
     }
     // Restore Saved Provider & Provider-Specific Settings
-    const default9RouterKey = "sk-3b791e4140c2fd0c-s2g2dt-fe07f69f";
+    const default9RouterKey = process.env.NEXT_PUBLIC_NINEROUTER_API_KEY || "";
     const savedProviderId = localStorage.getItem("ai_agent_provider") || "9router";
     setSelectedProvider(savedProviderId);
 
@@ -797,7 +797,7 @@ export default function Home() {
                   setSelectedModel(provObj.models[0]);
                 }
               }
-              const default9Key = "sk-3b791e4140c2fd0c-s2g2dt-fe07f69f";
+              const default9Key = process.env.NEXT_PUBLIC_NINEROUTER_API_KEY || "";
               const savedKey = localStorage.getItem(`ai_agent_key_${p}`);
               if (savedKey !== null) {
                 setApiKey(savedKey);

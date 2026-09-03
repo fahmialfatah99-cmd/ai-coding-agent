@@ -81,9 +81,9 @@ async def configure_github(req: GitHubConfigRequest):
 
     sandbox = DockerSandboxManager(req.workspace_path)
     
-    # 2. Configure Git user name and email
-    sandbox.execute_command(f'git config --global user.name "{gh_name}"')
-    sandbox.execute_command(f'git config --global user.email "{gh_email}"')
+    # 2. Configure Git user name and email safely without shell interpolation
+    sandbox.execute_command_argv(["git", "config", "--global", "user.name", gh_name])
+    sandbox.execute_command_argv(["git", "config", "--global", "user.email", gh_email])
     
     # 3. Configure remote URL with token if provided
     if req.remote_url:
@@ -92,7 +92,7 @@ async def configure_github(req: GitHubConfigRequest):
             # Strip existing user/token if present
             base_part = clean_url.split("@")[-1] if "@" in clean_url else clean_url.replace("https://", "")
             auth_url = f"https://{req.token}@{base_part}"
-            sandbox.execute_command(f'git remote set-url origin "{auth_url}"')
+            sandbox.execute_command_argv(["git", "remote", "set-url", "origin", auth_url])
 
     return {
         "status": "connected",
@@ -107,9 +107,9 @@ async def configure_github(req: GitHubConfigRequest):
 async def github_status():
     """Returns local git config status."""
     sandbox = DockerSandboxManager("./workspace")
-    user_res = sandbox.execute_command("git config --global user.name")
-    email_res = sandbox.execute_command("git config --global user.email")
-    remote_res = sandbox.execute_command("git remote -v")
+    user_res = sandbox.execute_command_argv(["git", "config", "--global", "user.name"])
+    email_res = sandbox.execute_command_argv(["git", "config", "--global", "user.email"])
+    remote_res = sandbox.execute_command_argv(["git", "remote", "-v"])
     
     return {
         "configured": bool(user_res.get("stdout", "").strip()),

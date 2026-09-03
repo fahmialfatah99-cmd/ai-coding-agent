@@ -36,7 +36,7 @@ const PROVIDER_DOCS: Record<string, { url: string; label: string; placeholder: s
   "9router": {
     url: "https://github.com/fahmialfatah99-cmd/ai-coding-agent",
     label: "9Router Gateway Docs",
-    placeholder: "sk-3b791e4140c2fd0c-s2g2dt-fe07f69f",
+    placeholder: "sk-...",
   },
   openai: {
     url: "https://platform.openai.com/api-keys",
@@ -111,7 +111,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   }, [isOpen, selectedProvider]);
 
   const loadProviderValues = (pId: string) => {
-    const default9Key = "sk-3b791e4140c2fd0c-s2g2dt-fe07f69f";
+    const default9Key = process.env.NEXT_PUBLIC_NINEROUTER_API_KEY || "";
     const savedKey = localStorage.getItem(`ai_agent_key_${pId}`);
     if (savedKey !== null) {
       setCurrentKeyInput(savedKey);

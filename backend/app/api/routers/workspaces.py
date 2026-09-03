@@ -53,17 +53,25 @@ async def list_workspaces(base_dir: str = Query("./workspaces")):
 @router.post("/init")
 async def init_workspace(req: WorkspaceInitRequest):
     """Initializes a new isolated project workspace."""
-    target_path = os.path.abspath(req.root_path or os.path.join("./workspaces", req.name))
+    safe_name = os.path.basename(req.name.strip().replace("\\", "/"))
+    if not safe_name or safe_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid workspace name.")
+
+    if req.root_path:
+        target_path = os.path.abspath(req.root_path)
+    else:
+        target_path = os.path.abspath(os.path.join("./workspaces", safe_name))
+
     os.makedirs(target_path, exist_ok=True)
     
     # Initialize basic README
     readme_path = os.path.join(target_path, "README.md")
     if not os.path.exists(readme_path):
         with open(readme_path, "w", encoding="utf-8") as f:
-            f.write(f"# Workspace: {req.name}\n\nCreated by AI Coding Agent.\n")
+            f.write(f"# Workspace: {safe_name}\n\nCreated by AI Coding Agent.\n")
             
     return {
         "status": "created",
-        "name": req.name,
+        "name": safe_name,
         "root_path": target_path
     }

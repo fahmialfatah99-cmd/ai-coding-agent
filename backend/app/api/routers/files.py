@@ -26,6 +26,18 @@ def get_resolved_workspace(path: str = "./workspace") -> str:
     os.makedirs(resolved, exist_ok=True)
     return resolved
 
+def safe_resolve_workspace_path(abs_root: str, file_path: str) -> str:
+    """Safely resolves and validates that file_path resides strictly within abs_root."""
+    clean_path = file_path.strip().lstrip("/\\")
+    abs_path = os.path.abspath(os.path.join(abs_root, clean_path))
+    try:
+        common = os.path.commonpath([abs_root, abs_path])
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Path traversal forbidden across drives or invalid path.")
+    if common != abs_root:
+        raise HTTPException(status_code=403, detail="Access denied: Path outside workspace boundary.")
+    return abs_path
+
 class FileReadRequest(BaseModel):
     workspace_path: str = "./workspace"
     file_path: str
@@ -108,7 +120,7 @@ async def get_file_tree(workspace_path: str = Query("./workspace")):
 async def read_file(req: FileReadRequest):
     """Reads content of a workspace file."""
     abs_root = get_resolved_workspace(req.workspace_path)
-    abs_path = os.path.abspath(os.path.join(abs_root, req.file_path))
+    abs_path = safe_resolve_workspace_path(abs_root, req.file_path)
     if not os.path.exists(abs_path) or os.path.isdir(abs_path):
         raise HTTPException(status_code=404, detail=f"File '{req.file_path}' not found at {abs_path}.")
     
@@ -122,7 +134,7 @@ async def read_file(req: FileReadRequest):
 async def write_file(req: FileWriteRequest):
     """Writes content to a workspace file."""
     abs_root = get_resolved_workspace(req.workspace_path)
-    abs_path = os.path.abspath(os.path.join(abs_root, req.file_path))
+    abs_path = safe_resolve_workspace_path(abs_root, req.file_path)
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
 
     try:
@@ -136,7 +148,9 @@ async def write_file(req: FileWriteRequest):
 async def delete_file(req: FileDeleteRequest):
     """Deletes a file from workspace."""
     abs_root = get_resolved_workspace(req.workspace_path)
-    abs_path = os.path.abspath(os.path.join(abs_root, req.file_path))
+    abs_path = safe_resolve_workspace_path(abs_root, req.file_path)
+    if abs_path == abs_root:
+        raise HTTPException(status_code=400, detail="Cannot delete root workspace directory.")
     if not os.path.exists(abs_path):
         raise HTTPException(status_code=404, detail="File not found")
         

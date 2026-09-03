@@ -213,6 +213,36 @@ class AgentOrchestrator:
                         "required": ["commit_message"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_file",
+                    "description": "Deletes a file or directory from the workspace.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "Relative path of file or directory to delete"}
+                        },
+                        "required": ["path"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_codebase",
+                    "description": "Searches for text or regex patterns across files in the workspace, returning matching lines, line numbers, and file paths.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "Search pattern or text query to look for"},
+                            "case_sensitive": {"type": "boolean", "description": "Whether the search is case-sensitive (default false)"},
+                            "max_results": {"type": "integer", "description": "Maximum number of matching lines to return (default 50)"}
+                        },
+                        "required": ["query"]
+                    }
+                }
             }
         ]
 
@@ -256,6 +286,18 @@ class AgentOrchestrator:
                 results.append({"path": path, "content": code.strip()})
         return results
 
+    def _safe_workspace_path(self, rel_path: str) -> Optional[str]:
+        """Safely resolves and validates that rel_path is strictly within self.workspace_path."""
+        clean = rel_path.strip().lstrip("/\\")
+        abs_root = os.path.abspath(self.workspace_path)
+        abs_path = os.path.abspath(os.path.join(abs_root, clean))
+        try:
+            if os.path.commonpath([abs_root, abs_path]) != abs_root:
+                return None
+        except ValueError:
+            return None
+        return abs_path
+
     async def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """
         Dispatches tool calls safely within the workspace.
@@ -290,8 +332,10 @@ class AgentOrchestrator:
             }
 
         elif tool_name == "read_file":
-            target = os.path.join(self.workspace_path, args.get("path", ""))
-            if not os.path.exists(target):
+            target = self._safe_workspace_path(args.get("path", ""))
+            if not target:
+                return {"error": "Path traversal denied: target is outside workspace boundary."}
+            if not os.path.exists(target) or os.path.isdir(target):
                 return {"error": f"File '{args.get('path')}' does not exist."}
             try:
                 with open(target, "r", encoding="utf-8") as f:
@@ -301,7 +345,9 @@ class AgentOrchestrator:
 
         elif tool_name == "write_file":
             rel_path = args.get("path", "").strip().lstrip("/\\")
-            target = os.path.join(self.workspace_path, rel_path)
+            target = self._safe_workspace_path(rel_path)
+            if not target:
+                return {"error": "Path traversal denied: target is outside workspace boundary."}
             os.makedirs(os.path.dirname(target), exist_ok=True)
             
             orig_content = ""
@@ -324,9 +370,85 @@ class AgentOrchestrator:
                 "diff": diff
             }
 
+        elif tool_name == "delete_file":
+            target = self._safe_workspace_path(args.get("path", ""))
+            if not target:
+                return {"error": "Path traversal denied: target is outside workspace boundary."}
+            abs_root = os.path.abspath(self.workspace_path)
+            if target == abs_root:
+                return {"error": "Cannot delete workspace root directory."}
+            if not os.path.exists(target):
+                return {"error": f"File '{args.get('path')}' does not exist."}
+            try:
+                if os.path.isdir(target):
+                    import shutil
+                    shutil.rmtree(target)
+                else:
+                    os.remove(target)
+                return {
+                    "status": "success",
+                    "message": f"Deleted '{args.get('path')}' successfully.",
+                    "file_path": args.get("path")
+                }
+            except Exception as e:
+                return {"error": f"Failed to delete '{args.get('path')}': {str(e)}"}
+
+        elif tool_name == "search_codebase":
+            query = args.get("query", "")
+            if not query:
+                return {"error": "Query cannot be empty."}
+            case_sensitive = args.get("case_sensitive", False)
+            max_results = min(args.get("max_results", 50), 200)
+            
+            import re as _re
+            flags = 0 if case_sensitive else _re.IGNORECASE
+            try:
+                pattern = _re.compile(query, flags)
+            except Exception:
+                pattern = _re.compile(_re.escape(query), flags)
+                
+            matches = []
+            ignore_dirs = {".git", "node_modules", "__pycache__", ".next", ".pytest_cache", "venv", ".venv"}
+            ignore_exts = {".pyc", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".lock", ".bin", ".tar", ".gz", ".zip"}
+            
+            abs_root = os.path.abspath(self.workspace_path)
+            for root, dirs, files in os.walk(abs_root):
+                dirs[:] = [d for d in dirs if d not in ignore_dirs]
+                for f in files:
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext in ignore_exts:
+                        continue
+                    full_p = os.path.join(root, f)
+                    rel_p = os.path.relpath(full_p, abs_root).replace("\\", "/")
+                    try:
+                        with open(full_p, "r", encoding="utf-8", errors="ignore") as file_obj:
+                            for line_no, line_content in enumerate(file_obj, start=1):
+                                if pattern.search(line_content):
+                                    matches.append({
+                                        "file": rel_p,
+                                        "line": line_no,
+                                        "content": line_content.strip()
+                                    })
+                                    if len(matches) >= max_results:
+                                        break
+                    except Exception:
+                        pass
+                    if len(matches) >= max_results:
+                        break
+                if len(matches) >= max_results:
+                    break
+                    
+            return {
+                "query": query,
+                "total_matches": len(matches),
+                "matches": matches
+            }
+
         elif tool_name == "apply_diff_patch":
             rel_path = args.get("path", "").strip().lstrip("/\\")
-            target = os.path.join(self.workspace_path, rel_path)
+            target = self._safe_workspace_path(rel_path)
+            if not target:
+                return {"error": "Path traversal denied: target is outside workspace boundary."}
             if not os.path.exists(target):
                 return {"error": f"File '{rel_path}' not found."}
                 
@@ -356,24 +478,19 @@ class AgentOrchestrator:
             branch = args.get("branch", "main")
 
             # SECURITY: Validate user-influenced inputs to prevent command injection.
-            # Without this, a malicious LLM output like
-            #   commit_message = 'x"; rm -rf /; #'
-            # would otherwise be interpolated into a shell string.
             if not isinstance(commit_msg, str) or len(commit_msg) > 4096:
                 return {"error": "commit_message must be a string <= 4096 chars."}
-            # Reject shell metacharacters that could be used for injection if ever
-            # passed to a shell (defense in depth, even though we use argv).
-            if _re.search(r'[;&|$`\\"\']', commit_msg):
+            # Reject shell command separators (defense in depth, even though argv is used).
+            if _re.search(r'[;&|`\\]', commit_msg):
                 return {"error": "commit_message contains disallowed characters."}
             if not isinstance(branch, str) or not _re.match(r"^[A-Za-z0-9._/\-]+$", branch) or len(branch) > 200:
                 return {"error": "branch must match [A-Za-z0-9._/-]+ and be <= 200 chars."}
-            # Strip NUL bytes and control chars that git would reject anyway.
+            # Strip NUL bytes that git would reject anyway.
             commit_msg = commit_msg.replace("\x00", "")
 
             repo_root = get_repo_root()
 
-            # Run git as an argument vector (no shell interpolation) so commit
-            # message / branch can't break out into arbitrary command execution.
+            # Run git as an argument vector (no shell interpolation)
             self.sandbox.execute_command_argv(["git", "-C", repo_root, "add", "."])
             commit_res = self.sandbox.execute_command_argv(
                 ["git", "-C", repo_root, "commit", "-m", commit_msg]
@@ -401,7 +518,9 @@ class AgentOrchestrator:
         elif tool_name == "search_ast_symbols":
             rel_path = args.get("path", "")
             query = args.get("query", "")
-            target = os.path.join(self.workspace_path, rel_path)
+            target = self._safe_workspace_path(rel_path)
+            if not target:
+                return {"error": "Path traversal denied: target is outside workspace boundary."}
             if not os.path.exists(target):
                 return {"error": f"File '{rel_path}' not found."}
             with open(target, "r", encoding="utf-8") as f:
@@ -572,9 +691,7 @@ class AgentOrchestrator:
         Uses 1 single centralized 9Router API Key safely and sequentially.
         """
         self.sandbox.start_sandbox()
-
         self.active_file = active_file
-        self.sandbox.start_sandbox()
 
         # Shared Project Context & Memory
         memory_files = ["MEMORY.md", ".agent/rules.md", ".cursorrules", "ARCHITECTURE.md"]
